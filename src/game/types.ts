@@ -17,3 +17,9 @@ export type FallMove = {
   from: GridPosition
   to: GridPosition
 }
+
+export type RefillMove = {
+  gemType: GemType
+  spawnRow: number
+  to: GridPosition
+}

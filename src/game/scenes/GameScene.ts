@@ -3,11 +3,19 @@ import {
   applyGravity,
   clearMatchedCells,
   createInitialBoard,
+  refillBoard,
   swapBoardCells,
 } from '../boardModel'
 import { BOARD_COLUMNS, BOARD_PADDING, BOARD_ROWS, CELL_SIZE } from '../constants'
 import { findMatches } from '../matchFinder'
-import type { BoardState, FallMove, GemType, GridPosition, MatchGroup } from '../types'
+import type {
+  BoardState,
+  FallMove,
+  GemType,
+  GridPosition,
+  MatchGroup,
+  RefillMove,
+} from '../types'
 
 const GEM_COLORS: Record<GemType, number> = {
   ruby: 0xff5d8f,
@@ -61,7 +69,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
 
     this.add
-      .text(width / 2, height - 28, 'Stage 6: clear matches and drop gems downward', {
+      .text(width / 2, height - 28, 'Stage 7: refill empty cells with new gems from above', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '16px',
         color: '#f7efe6',
@@ -136,33 +144,7 @@ export class GameScene extends Phaser.Scene {
           continue
         }
 
-        const gem = this.add.rectangle(
-          centerX,
-          centerY,
-          CELL_SIZE - 14,
-          CELL_SIZE - 14,
-          GEM_COLORS[gemType],
-          0.96,
-        )
-        gem.setStrokeStyle(3, 0xffffff, 0.18)
-        gem.setRotation(Phaser.Math.DegToRad(45))
-        gem.setInteractive({ useHandCursor: true })
-        gem.setDepth(1)
-
-        if ((position.row + position.column) % 2 === 0) {
-          gem.y -= 1
-        }
-
-        const gemView: GemView = {
-          position: { ...position },
-          gemType,
-          sprite: gem,
-        }
-
-        gem.on('pointerdown', () => {
-          this.handleGemSelection(gemView)
-        })
-
+        const gemView = this.createGemView(position, gemType)
         viewRow.push(gemView)
       }
 
@@ -248,6 +230,34 @@ export class GameScene extends Phaser.Scene {
     })
   }
 
+  private createGemView(position: GridPosition, gemType: GemType): GemView {
+    const cellCenter = this.getCellCenter(position)
+    const gem = this.add.rectangle(
+      cellCenter.x,
+      (position.row + position.column) % 2 === 0 ? cellCenter.y - 1 : cellCenter.y,
+      CELL_SIZE - 14,
+      CELL_SIZE - 14,
+      GEM_COLORS[gemType],
+      0.96,
+    )
+    gem.setStrokeStyle(3, 0xffffff, 0.18)
+    gem.setRotation(Phaser.Math.DegToRad(45))
+    gem.setInteractive({ useHandCursor: true })
+    gem.setDepth(1)
+
+    const gemView: GemView = {
+      position: { ...position },
+      gemType,
+      sprite: gem,
+    }
+
+    gem.on('pointerdown', () => {
+      this.handleGemSelection(gemView)
+    })
+
+    return gemView
+  }
+
   private createScoreText(): void {
     this.scoreText = this.add.text(28, 28, '', {
       fontFamily: 'Trebuchet MS, Verdana, sans-serif',
@@ -322,6 +332,9 @@ export class GameScene extends Phaser.Scene {
 
     const fallMoves = applyGravity(this.boardState)
     await this.animateGravity(fallMoves)
+
+    const refillMoves = refillBoard(this.boardState)
+    await this.animateRefill(refillMoves)
   }
 
   private async animateGravity(moves: FallMove[]): Promise<void> {
@@ -346,6 +359,28 @@ export class GameScene extends Phaser.Scene {
       .filter((animation): animation is Promise<void> => Boolean(animation))
 
     await Promise.all(animatedMoves)
+    this.updateSelectionState()
+  }
+
+  private async animateRefill(moves: RefillMove[]): Promise<void> {
+    if (moves.length === 0) {
+      return
+    }
+
+    const animations = moves.map((move) => {
+      const gemView = this.createGemView(move.to, move.gemType)
+      const spawnPosition = { row: move.spawnRow, column: move.to.column }
+      const spawnCenter = this.getCellCenter(spawnPosition)
+
+      gemView.sprite.x = spawnCenter.x
+      gemView.sprite.y = (move.spawnRow + move.to.column) % 2 === 0 ? spawnCenter.y - 1 : spawnCenter.y
+
+      this.gemViews[move.to.row][move.to.column] = gemView
+
+      return this.animateGemMove(gemView, move.to)
+    })
+
+    await Promise.all(animations)
     this.updateSelectionState()
   }
 
