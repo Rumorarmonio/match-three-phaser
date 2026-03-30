@@ -4,12 +4,12 @@ import { GameScene } from './scenes/GameScene'
 
 export const gameConfig: Types.Core.GameConfig = {
   type: Phaser.AUTO,
-  width: 960,
-  height: 540,
+  width: 1280,
+  height: 720,
   backgroundColor: '#120d24',
   scale: {
     mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
+    autoCenter: Phaser.Scale.CENTER_HORIZONTALLY,
   },
   scene: [BootScene, GameScene],
 }

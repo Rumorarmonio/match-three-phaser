@@ -53,8 +53,9 @@ export class GameScene extends Phaser.Scene {
     const { width, height } = this.scale
     const boardWidth = BOARD_COLUMNS * CELL_SIZE + BOARD_PADDING * 2
     const boardHeight = BOARD_ROWS * CELL_SIZE + BOARD_PADDING * 2
+    const boardTopOffset = 64
     this.boardLeft = Math.round((width - boardWidth) / 2)
-    this.boardTop = Math.round((height - boardHeight) / 2)
+    this.boardTop = Math.round((height - boardHeight) / 2) - boardTopOffset
     this.initializeGameState()
 
     this.drawBackground(width, height)
@@ -63,15 +64,6 @@ export class GameScene extends Phaser.Scene {
     this.registerDragHandlers()
     this.createScoreText()
     this.createRestartButton()
-
-    this.add
-      .text(width / 2, 36, 'Match-3 Start Board', {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '28px',
-        color: '#fff4d6',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0.5)
 
     this.add
       .text(width / 2, height - 28, 'Stage 10: drag-and-drop gem swapping', {

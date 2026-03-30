@@ -9,14 +9,10 @@ if (!app) {
 
 app.innerHTML = `
   <main class="app-shell">
-    <section class="hero-panel">
+    <header class="app-header">
       <p class="eyebrow">Phaser 3 + Vite + TypeScript</p>
       <h1>Match-Three Prototype</h1>
-      <p class="lead">
-        Базовый каркас для браузерной игры: стартовый экран уже запускается,
-        дальше можно добавлять сцены, механику поля и UI.
-      </p>
-    </section>
+    </header>
     <section class="game-panel">
       <div id="game-root" class="game-root" aria-label="Игровой экран"></div>
     </section>
