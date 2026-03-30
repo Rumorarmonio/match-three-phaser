@@ -12,3 +12,8 @@ export type BoardCell = GemType | null
 export type BoardState = BoardCell[][]
 
 export type MatchGroup = GridPosition[]
+
+export type FallMove = {
+  from: GridPosition
+  to: GridPosition
+}

@@ -1,5 +1,5 @@
 import { BOARD_COLUMNS, BOARD_ROWS, GEM_TYPES } from './constants'
-import type { BoardState, GemType, GridPosition, MatchGroup } from './types'
+import type { BoardState, FallMove, GemType, GridPosition, MatchGroup } from './types'
 
 const pickRandomGemType = (availableGemTypes: GemType[]): GemType => {
   const randomIndex = Math.floor(Math.random() * availableGemTypes.length)
@@ -62,4 +62,33 @@ export const clearMatchedCells = (board: BoardState, matches: MatchGroup[]): voi
       board[position.row][position.column] = null
     }
   }
+}
+
+export const applyGravity = (board: BoardState): FallMove[] => {
+  const moves: FallMove[] = []
+
+  for (let column = 0; column < BOARD_COLUMNS; column += 1) {
+    let targetRow = BOARD_ROWS - 1
+
+    for (let row = BOARD_ROWS - 1; row >= 0; row -= 1) {
+      const gemType = board[row][column]
+
+      if (gemType === null) {
+        continue
+      }
+
+      if (row !== targetRow) {
+        board[targetRow][column] = gemType
+        board[row][column] = null
+        moves.push({
+          from: { row, column },
+          to: { row: targetRow, column },
+        })
+      }
+
+      targetRow -= 1
+    }
+  }
+
+  return moves
 }

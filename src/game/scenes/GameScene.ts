@@ -1,8 +1,13 @@
 import Phaser from 'phaser'
-import { clearMatchedCells, createInitialBoard, swapBoardCells } from '../boardModel'
+import {
+  applyGravity,
+  clearMatchedCells,
+  createInitialBoard,
+  swapBoardCells,
+} from '../boardModel'
 import { BOARD_COLUMNS, BOARD_PADDING, BOARD_ROWS, CELL_SIZE } from '../constants'
 import { findMatches } from '../matchFinder'
-import type { BoardState, GemType, GridPosition, MatchGroup } from '../types'
+import type { BoardState, FallMove, GemType, GridPosition, MatchGroup } from '../types'
 
 const GEM_COLORS: Record<GemType, number> = {
   ruby: 0xff5d8f,
@@ -56,7 +61,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
 
     this.add
-      .text(width / 2, height - 28, 'Stage 5: clear matches and add base score', {
+      .text(width / 2, height - 28, 'Stage 6: clear matches and drop gems downward', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '16px',
         color: '#f7efe6',
@@ -311,6 +316,34 @@ export class GameScene extends Phaser.Scene {
     this.score += uniquePositions.length * 10
     this.matchedGemKeys.clear()
     this.updateScoreText()
+    this.updateSelectionState()
+
+    const fallMoves = applyGravity(this.boardState)
+    await this.animateGravity(fallMoves)
+  }
+
+  private async animateGravity(moves: FallMove[]): Promise<void> {
+    if (moves.length === 0) {
+      return
+    }
+
+    const animatedMoves = moves
+      .map((move) => {
+        const gemView = this.gemViews[move.from.row][move.from.column]
+
+        if (!gemView) {
+          return null
+        }
+
+        this.gemViews[move.from.row][move.from.column] = null
+        this.gemViews[move.to.row][move.to.column] = gemView
+        gemView.position = { ...move.to }
+
+        return this.animateGemMove(gemView, move.to)
+      })
+      .filter((animation): animation is Promise<void> => Boolean(animation))
+
+    await Promise.all(animatedMoves)
     this.updateSelectionState()
   }
 
