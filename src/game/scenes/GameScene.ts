@@ -37,6 +37,9 @@ export class GameScene extends Phaser.Scene {
   private selectedGem: GemView | null = null
   private matchedGemKeys = new Set<string>()
   private isBoardBusy = false
+  private draggedGem: GemView | null = null
+  private dragStartPointerPosition: { x: number; y: number } | null = null
+  private dragPreviewTargetGem: GemView | null = null
   private boardLeft = 0
   private boardTop = 0
   private score = 0
@@ -57,6 +60,7 @@ export class GameScene extends Phaser.Scene {
     this.drawBackground(width, height)
     this.drawBoardFrame(this.boardLeft, this.boardTop, boardWidth, boardHeight)
     this.drawBoard(this.boardState, this.boardLeft + BOARD_PADDING, this.boardTop + BOARD_PADDING)
+    this.registerDragHandlers()
     this.createScoreText()
     this.createRestartButton()
 
@@ -70,7 +74,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
 
     this.add
-      .text(width / 2, height - 28, 'Stage 9: score HUD and restart button', {
+      .text(width / 2, height - 28, 'Stage 10: drag-and-drop gem swapping', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '16px',
         color: '#f7efe6',
@@ -84,6 +88,9 @@ export class GameScene extends Phaser.Scene {
     this.selectedGem = null
     this.matchedGemKeys.clear()
     this.isBoardBusy = false
+    this.draggedGem = null
+    this.dragStartPointerPosition = null
+    this.dragPreviewTargetGem = null
     this.score = 0
   }
 
@@ -240,6 +247,169 @@ export class GameScene extends Phaser.Scene {
     })
   }
 
+  private getCellSpritePosition(position: GridPosition): { x: number; y: number } {
+    const cellCenter = this.getCellCenter(position)
+
+    return {
+      x: cellCenter.x,
+      y: (position.row + position.column) % 2 === 0 ? cellCenter.y - 1 : cellCenter.y,
+    }
+  }
+
+  private resetDragPreviewTarget(): void {
+    if (!this.dragPreviewTargetGem) {
+      return
+    }
+
+    const cellPosition = this.getCellSpritePosition(this.dragPreviewTargetGem.position)
+    this.dragPreviewTargetGem.sprite.x = cellPosition.x
+    this.dragPreviewTargetGem.sprite.y = cellPosition.y
+    this.dragPreviewTargetGem = null
+  }
+
+  private registerDragHandlers(): void {
+    this.input.off('dragstart')
+    this.input.off('drag')
+    this.input.off('dragend')
+
+    this.input.on('dragstart', (_pointer: Phaser.Input.Pointer, gameObject: Phaser.GameObjects.GameObject) => {
+      const gemView = gameObject.getData('gemView') as GemView | undefined
+
+      if (!gemView || this.isBoardBusy) {
+        return
+      }
+
+      this.draggedGem = gemView
+      this.dragStartPointerPosition = { x: gemView.sprite.x, y: gemView.sprite.y }
+      this.selectedGem = gemView
+      gemView.sprite.setDepth(2)
+      this.updateSelectionState()
+    })
+
+    this.input.on(
+      'drag',
+      (
+        pointer: Phaser.Input.Pointer,
+        gameObject: Phaser.GameObjects.GameObject,
+      ) => {
+        const gemView = gameObject.getData('gemView') as GemView | undefined
+
+        if (!gemView || this.draggedGem !== gemView || this.isBoardBusy) {
+          return
+        }
+
+        const { x, y } = this.getDraggedGemPosition(pointer)
+        gemView.sprite.x = x
+        gemView.sprite.y = y
+        this.updateDragPreviewTarget(gemView)
+      },
+    )
+
+    this.input.on('dragend', (_pointer: Phaser.Input.Pointer, gameObject: Phaser.GameObjects.GameObject) => {
+      const gemView = gameObject.getData('gemView') as GemView | undefined
+
+      if (!gemView || this.draggedGem !== gemView) {
+        return
+      }
+
+      gemView.sprite.setDepth(1)
+
+      const targetGem = this.getDragSwapTarget(gemView)
+      this.draggedGem = null
+      this.dragStartPointerPosition = null
+
+      if (!targetGem) {
+        this.resetDragPreviewTarget()
+        void this.animateGemMove(gemView, gemView.position)
+        this.updateSelectionState()
+        return
+      }
+
+      this.dragPreviewTargetGem = null
+      void this.swapSelectedGems(gemView, targetGem)
+    })
+  }
+
+  private getDraggedGemPosition(pointer: Phaser.Input.Pointer): { x: number; y: number } {
+    if (!this.draggedGem || !this.dragStartPointerPosition) {
+      return { x: pointer.x, y: pointer.y }
+    }
+
+    const dragOffsetX = pointer.x - this.dragStartPointerPosition.x
+    const dragOffsetY = pointer.y - this.dragStartPointerPosition.y
+    const isHorizontal = Math.abs(dragOffsetX) >= Math.abs(dragOffsetY)
+    const maxOffset = CELL_SIZE
+
+    if (isHorizontal) {
+      return {
+        x: this.dragStartPointerPosition.x + Phaser.Math.Clamp(dragOffsetX, -maxOffset, maxOffset),
+        y: this.dragStartPointerPosition.y,
+      }
+    }
+
+    return {
+      x: this.dragStartPointerPosition.x,
+      y: this.dragStartPointerPosition.y + Phaser.Math.Clamp(dragOffsetY, -maxOffset, maxOffset),
+    }
+  }
+
+  private getDragSwapTarget(gemView: GemView): GemView | null {
+    if (!this.dragStartPointerPosition) {
+      return null
+    }
+
+    const dragOffsetX = gemView.sprite.x - this.dragStartPointerPosition.x
+    const dragOffsetY = gemView.sprite.y - this.dragStartPointerPosition.y
+    const minimumSwapDistance = CELL_SIZE * 0.35
+
+    if (Math.max(Math.abs(dragOffsetX), Math.abs(dragOffsetY)) < minimumSwapDistance) {
+      return null
+    }
+
+    const targetPosition = { ...gemView.position }
+
+    if (Math.abs(dragOffsetX) >= Math.abs(dragOffsetY)) {
+      targetPosition.column += dragOffsetX > 0 ? 1 : -1
+    } else {
+      targetPosition.row += dragOffsetY > 0 ? 1 : -1
+    }
+
+    if (
+      targetPosition.row < 0 ||
+      targetPosition.row >= BOARD_ROWS ||
+      targetPosition.column < 0 ||
+      targetPosition.column >= BOARD_COLUMNS
+    ) {
+      return null
+    }
+
+    return this.gemViews[targetPosition.row][targetPosition.column]
+  }
+
+  private updateDragPreviewTarget(gemView: GemView): void {
+    if (!this.dragStartPointerPosition) {
+      return
+    }
+
+    const targetGem = this.getDragSwapTarget(gemView)
+
+    if (targetGem !== this.dragPreviewTargetGem) {
+      this.resetDragPreviewTarget()
+      this.dragPreviewTargetGem = targetGem
+    }
+
+    if (!targetGem) {
+      return
+    }
+
+    const targetCellPosition = this.getCellSpritePosition(targetGem.position)
+    const previewOffsetX = this.dragStartPointerPosition.x - gemView.sprite.x
+    const previewOffsetY = this.dragStartPointerPosition.y - gemView.sprite.y
+
+    targetGem.sprite.x = targetCellPosition.x + previewOffsetX
+    targetGem.sprite.y = targetCellPosition.y + previewOffsetY
+  }
+
   private createGemView(position: GridPosition, gemType: GemType): GemView {
     const cellCenter = this.getCellCenter(position)
     const gem = this.add.rectangle(
@@ -253,6 +423,7 @@ export class GameScene extends Phaser.Scene {
     gem.setStrokeStyle(3, 0xffffff, 0.18)
     gem.setRotation(Phaser.Math.DegToRad(45))
     gem.setInteractive({ useHandCursor: true })
+    this.input.setDraggable(gem)
     gem.setDepth(1)
 
     const gemView: GemView = {
@@ -261,7 +432,13 @@ export class GameScene extends Phaser.Scene {
       sprite: gem,
     }
 
+    gem.setData('gemView', gemView)
+
     gem.on('pointerdown', () => {
+      if (this.draggedGem === gemView) {
+        return
+      }
+
       this.handleGemSelection(gemView)
     })
 
