@@ -7,6 +7,8 @@ export type GridPosition = {
 
 export type GemType = (typeof GEM_TYPES)[number]
 
-export type BoardState = GemType[][]
+export type BoardCell = GemType | null
+
+export type BoardState = BoardCell[][]
 
 export type MatchGroup = GridPosition[]

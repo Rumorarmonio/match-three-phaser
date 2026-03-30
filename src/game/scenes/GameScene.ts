@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { createInitialBoard, swapBoardCells } from '../boardModel'
+import { clearMatchedCells, createInitialBoard, swapBoardCells } from '../boardModel'
 import { BOARD_COLUMNS, BOARD_PADDING, BOARD_ROWS, CELL_SIZE } from '../constants'
 import { findMatches } from '../matchFinder'
 import type { BoardState, GemType, GridPosition, MatchGroup } from '../types'
@@ -20,12 +20,14 @@ type GemView = {
 
 export class GameScene extends Phaser.Scene {
   private boardState: BoardState = []
-  private gemViews: GemView[][] = []
+  private gemViews: Array<Array<GemView | null>> = []
   private selectedGem: GemView | null = null
   private matchedGemKeys = new Set<string>()
   private isSwapping = false
   private boardLeft = 0
   private boardTop = 0
+  private score = 0
+  private scoreText!: Phaser.GameObjects.Text
 
   constructor() {
     super('game')
@@ -42,6 +44,7 @@ export class GameScene extends Phaser.Scene {
     this.drawBackground(width, height)
     this.drawBoardFrame(this.boardLeft, this.boardTop, boardWidth, boardHeight)
     this.drawBoard(this.boardState, this.boardLeft + BOARD_PADDING, this.boardTop + BOARD_PADDING)
+    this.createScoreText()
 
     this.add
       .text(width / 2, 36, 'Match-3 Start Board', {
@@ -53,7 +56,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
 
     this.add
-      .text(width / 2, height - 28, 'Stage 4: validate swap and detect matches', {
+      .text(width / 2, height - 28, 'Stage 5: clear matches and add base score', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '16px',
         color: '#f7efe6',
@@ -104,7 +107,7 @@ export class GameScene extends Phaser.Scene {
     this.gemViews = []
 
     for (let row = 0; row < boardState.length; row += 1) {
-      const viewRow: GemView[] = []
+      const viewRow: Array<GemView | null> = []
 
       for (let column = 0; column < boardState[row].length; column += 1) {
         const position: GridPosition = { row, column }
@@ -121,6 +124,11 @@ export class GameScene extends Phaser.Scene {
           0.85,
         )
         cell.setStrokeStyle(1, 0xffffff, 0.08)
+
+        if (gemType === null) {
+          viewRow.push(null)
+          continue
+        }
 
         const gem = this.add.rectangle(
           centerX,
@@ -184,6 +192,10 @@ export class GameScene extends Phaser.Scene {
   private updateSelectionState(): void {
     for (const row of this.gemViews) {
       for (const gemView of row) {
+        if (!gemView) {
+          continue
+        }
+
         const isSelected = this.selectedGem === gemView
         const isMatched = this.matchedGemKeys.has(this.getPositionKey(gemView.position))
         const strokeColor = isSelected ? 0xfff4d6 : isMatched ? 0x7ae582 : 0xffffff
@@ -229,6 +241,21 @@ export class GameScene extends Phaser.Scene {
     })
   }
 
+  private createScoreText(): void {
+    this.scoreText = this.add.text(28, 28, '', {
+      fontFamily: 'Trebuchet MS, Verdana, sans-serif',
+      fontSize: '24px',
+      color: '#fff4d6',
+      fontStyle: 'bold',
+    })
+
+    this.updateScoreText()
+  }
+
+  private updateScoreText(): void {
+    this.scoreText.setText(`Score: ${this.score}`)
+  }
+
   private getPositionKey(position: GridPosition): string {
     return `${position.row}:${position.column}`
   }
@@ -237,6 +264,53 @@ export class GameScene extends Phaser.Scene {
     this.matchedGemKeys = new Set(
       matches.flatMap((match) => match.map((position) => this.getPositionKey(position))),
     )
+    this.updateSelectionState()
+  }
+
+  private async removeMatchedGems(matches: MatchGroup[]): Promise<void> {
+    const uniquePositions = Array.from(
+      new Set(matches.flatMap((match) => match.map((position) => this.getPositionKey(position)))),
+    ).map((key) => {
+      const [row, column] = key.split(':').map(Number)
+      return { row, column }
+    })
+
+    const matchedSprites = uniquePositions
+      .map((position) => this.gemViews[position.row][position.column]?.sprite)
+      .filter((sprite): sprite is Phaser.GameObjects.Rectangle => Boolean(sprite))
+
+    await new Promise<void>((resolve) => {
+      if (matchedSprites.length === 0) {
+        resolve()
+        return
+      }
+
+      this.tweens.add({
+        targets: matchedSprites,
+        alpha: 0,
+        scale: 0.7,
+        duration: 180,
+        ease: 'Sine.easeInOut',
+        onComplete: () => resolve(),
+      })
+    })
+
+    clearMatchedCells(this.boardState, matches)
+
+    for (const position of uniquePositions) {
+      const gemView = this.gemViews[position.row][position.column]
+
+      if (!gemView) {
+        continue
+      }
+
+      gemView.sprite.destroy()
+      this.gemViews[position.row][position.column] = null
+    }
+
+    this.score += uniquePositions.length * 10
+    this.matchedGemKeys.clear()
+    this.updateScoreText()
     this.updateSelectionState()
   }
 
@@ -280,6 +354,7 @@ export class GameScene extends Phaser.Scene {
       ])
     } else {
       this.setMatchedState(matches)
+      await this.removeMatchedGems(matches)
     }
 
     this.isSwapping = false

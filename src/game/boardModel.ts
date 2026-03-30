@@ -1,5 +1,5 @@
 import { BOARD_COLUMNS, BOARD_ROWS, GEM_TYPES } from './constants'
-import type { BoardState, GemType, GridPosition } from './types'
+import type { BoardState, GemType, GridPosition, MatchGroup } from './types'
 
 const pickRandomGemType = (availableGemTypes: GemType[]): GemType => {
   const randomIndex = Math.floor(Math.random() * availableGemTypes.length)
@@ -54,4 +54,12 @@ export const swapBoardCells = (
   const firstGemType = board[first.row][first.column]
   board[first.row][first.column] = board[second.row][second.column]
   board[second.row][second.column] = firstGemType
+}
+
+export const clearMatchedCells = (board: BoardState, matches: MatchGroup[]): void => {
+  for (const match of matches) {
+    for (const position of match) {
+      board[position.row][position.column] = null
+    }
+  }
 }
