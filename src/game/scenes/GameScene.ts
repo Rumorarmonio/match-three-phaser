@@ -1,7 +1,8 @@
 import Phaser from 'phaser'
 import { createInitialBoard, swapBoardCells } from '../boardModel'
 import { BOARD_COLUMNS, BOARD_PADDING, BOARD_ROWS, CELL_SIZE } from '../constants'
-import type { BoardState, GemType, GridPosition } from '../types'
+import { findMatches } from '../matchFinder'
+import type { BoardState, GemType, GridPosition, MatchGroup } from '../types'
 
 const GEM_COLORS: Record<GemType, number> = {
   ruby: 0xff5d8f,
@@ -21,6 +22,7 @@ export class GameScene extends Phaser.Scene {
   private boardState: BoardState = []
   private gemViews: GemView[][] = []
   private selectedGem: GemView | null = null
+  private matchedGemKeys = new Set<string>()
   private isSwapping = false
   private boardLeft = 0
   private boardTop = 0
@@ -51,7 +53,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
 
     this.add
-      .text(width / 2, height - 28, 'Stage 3: select gems and swap adjacent cells', {
+      .text(width / 2, height - 28, 'Stage 4: validate swap and detect matches', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '16px',
         color: '#f7efe6',
@@ -183,8 +185,13 @@ export class GameScene extends Phaser.Scene {
     for (const row of this.gemViews) {
       for (const gemView of row) {
         const isSelected = this.selectedGem === gemView
-        gemView.sprite.setStrokeStyle(3, 0xffffff, isSelected ? 0.95 : 0.18)
-        gemView.sprite.setScale(isSelected ? 1.08 : 1)
+        const isMatched = this.matchedGemKeys.has(this.getPositionKey(gemView.position))
+        const strokeColor = isSelected ? 0xfff4d6 : isMatched ? 0x7ae582 : 0xffffff
+        const strokeAlpha = isSelected ? 0.95 : isMatched ? 0.92 : 0.18
+        const scale = isSelected ? 1.08 : isMatched ? 1.04 : 1
+
+        gemView.sprite.setStrokeStyle(3, strokeColor, strokeAlpha)
+        gemView.sprite.setScale(scale)
       }
     }
   }
@@ -222,11 +229,23 @@ export class GameScene extends Phaser.Scene {
     })
   }
 
+  private getPositionKey(position: GridPosition): string {
+    return `${position.row}:${position.column}`
+  }
+
+  private setMatchedState(matches: MatchGroup[]): void {
+    this.matchedGemKeys = new Set(
+      matches.flatMap((match) => match.map((position) => this.getPositionKey(position))),
+    )
+    this.updateSelectionState()
+  }
+
   private async swapSelectedGems(first: GemView, second: GemView): Promise<void> {
     this.isSwapping = true
 
     const firstPosition = { ...first.position }
     const secondPosition = { ...second.position }
+    this.matchedGemKeys.clear()
 
     this.selectedGem = null
     this.updateSelectionState()
@@ -243,6 +262,25 @@ export class GameScene extends Phaser.Scene {
       this.animateGemMove(first, secondPosition),
       this.animateGemMove(second, firstPosition),
     ])
+
+    const matches = findMatches(this.boardState)
+
+    if (matches.length === 0) {
+      swapBoardCells(this.boardState, secondPosition, firstPosition)
+
+      this.gemViews[firstPosition.row][firstPosition.column] = first
+      this.gemViews[secondPosition.row][secondPosition.column] = second
+
+      first.position = firstPosition
+      second.position = secondPosition
+
+      await Promise.all([
+        this.animateGemMove(first, firstPosition),
+        this.animateGemMove(second, secondPosition),
+      ])
+    } else {
+      this.setMatchedState(matches)
+    }
 
     this.isSwapping = false
   }
