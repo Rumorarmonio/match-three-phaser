@@ -1,12 +1,7 @@
 import Phaser from 'phaser'
-import {
-  BOARD_COLUMNS,
-  BOARD_PADDING,
-  BOARD_ROWS,
-  CELL_SIZE,
-  GEM_TYPES,
-} from '../constants'
-import type { GemType, GridPosition } from '../types'
+import { createInitialBoard, swapBoardCells } from '../boardModel'
+import { BOARD_COLUMNS, BOARD_PADDING, BOARD_ROWS, CELL_SIZE } from '../constants'
+import type { BoardState, GemType, GridPosition } from '../types'
 
 const GEM_COLORS: Record<GemType, number> = {
   ruby: 0xff5d8f,
@@ -16,7 +11,20 @@ const GEM_COLORS: Record<GemType, number> = {
   violet: 0xc77dff,
 }
 
+type GemView = {
+  position: GridPosition
+  gemType: GemType
+  sprite: Phaser.GameObjects.Rectangle
+}
+
 export class GameScene extends Phaser.Scene {
+  private boardState: BoardState = []
+  private gemViews: GemView[][] = []
+  private selectedGem: GemView | null = null
+  private isSwapping = false
+  private boardLeft = 0
+  private boardTop = 0
+
   constructor() {
     super('game')
   }
@@ -25,15 +33,16 @@ export class GameScene extends Phaser.Scene {
     const { width, height } = this.scale
     const boardWidth = BOARD_COLUMNS * CELL_SIZE + BOARD_PADDING * 2
     const boardHeight = BOARD_ROWS * CELL_SIZE + BOARD_PADDING * 2
-    const boardLeft = Math.round((width - boardWidth) / 2)
-    const boardTop = Math.round((height - boardHeight) / 2)
+    this.boardLeft = Math.round((width - boardWidth) / 2)
+    this.boardTop = Math.round((height - boardHeight) / 2)
+    this.boardState = createInitialBoard()
 
     this.drawBackground(width, height)
-    this.drawBoardFrame(boardLeft, boardTop, boardWidth, boardHeight)
-    this.drawTestGrid(boardLeft + BOARD_PADDING, boardTop + BOARD_PADDING)
+    this.drawBoardFrame(this.boardLeft, this.boardTop, boardWidth, boardHeight)
+    this.drawBoard(this.boardState, this.boardLeft + BOARD_PADDING, this.boardTop + BOARD_PADDING)
 
     this.add
-      .text(width / 2, 36, 'Match-3 Board Prototype', {
+      .text(width / 2, 36, 'Match-3 Start Board', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '28px',
         color: '#fff4d6',
@@ -42,7 +51,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
 
     this.add
-      .text(width / 2, height - 28, 'Stage 1: board frame, constants and gem types', {
+      .text(width / 2, height - 28, 'Stage 3: select gems and swap adjacent cells', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '16px',
         color: '#f7efe6',
@@ -89,11 +98,15 @@ export class GameScene extends Phaser.Scene {
     board.setStrokeStyle(4, 0xf7b267, 0.8)
   }
 
-  private drawTestGrid(gridLeft: number, gridTop: number): void {
-    for (let row = 0; row < BOARD_ROWS; row += 1) {
-      for (let column = 0; column < BOARD_COLUMNS; column += 1) {
+  private drawBoard(boardState: BoardState, gridLeft: number, gridTop: number): void {
+    this.gemViews = []
+
+    for (let row = 0; row < boardState.length; row += 1) {
+      const viewRow: GemView[] = []
+
+      for (let column = 0; column < boardState[row].length; column += 1) {
         const position: GridPosition = { row, column }
-        const gemType = GEM_TYPES[(row + column) % GEM_TYPES.length]
+        const gemType = boardState[row][column]
         const centerX = gridLeft + column * CELL_SIZE + CELL_SIZE / 2
         const centerY = gridTop + row * CELL_SIZE + CELL_SIZE / 2
 
@@ -117,11 +130,120 @@ export class GameScene extends Phaser.Scene {
         )
         gem.setStrokeStyle(3, 0xffffff, 0.18)
         gem.setRotation(Phaser.Math.DegToRad(45))
+        gem.setInteractive({ useHandCursor: true })
 
         if ((position.row + position.column) % 2 === 0) {
           gem.y -= 1
         }
+
+        const gemView: GemView = {
+          position: { ...position },
+          gemType,
+          sprite: gem,
+        }
+
+        gem.on('pointerdown', () => {
+          this.handleGemSelection(gemView)
+        })
+
+        viewRow.push(gemView)
+      }
+
+      this.gemViews.push(viewRow)
+    }
+  }
+
+  private handleGemSelection(gemView: GemView): void {
+    if (this.isSwapping) {
+      return
+    }
+
+    if (!this.selectedGem) {
+      this.selectedGem = gemView
+      this.updateSelectionState()
+      return
+    }
+
+    if (this.selectedGem === gemView) {
+      this.selectedGem = null
+      this.updateSelectionState()
+      return
+    }
+
+    if (!this.areAdjacent(this.selectedGem.position, gemView.position)) {
+      this.selectedGem = gemView
+      this.updateSelectionState()
+      return
+    }
+
+    void this.swapSelectedGems(this.selectedGem, gemView)
+  }
+
+  private updateSelectionState(): void {
+    for (const row of this.gemViews) {
+      for (const gemView of row) {
+        const isSelected = this.selectedGem === gemView
+        gemView.sprite.setStrokeStyle(3, 0xffffff, isSelected ? 0.95 : 0.18)
+        gemView.sprite.setScale(isSelected ? 1.08 : 1)
       }
     }
+  }
+
+  private areAdjacent(first: GridPosition, second: GridPosition): boolean {
+    const rowDistance = Math.abs(first.row - second.row)
+    const columnDistance = Math.abs(first.column - second.column)
+
+    return rowDistance + columnDistance === 1
+  }
+
+  private getCellCenter(position: GridPosition): { x: number; y: number } {
+    const gridLeft = this.boardLeft + BOARD_PADDING
+    const gridTop = this.boardTop + BOARD_PADDING
+
+    return {
+      x: gridLeft + position.column * CELL_SIZE + CELL_SIZE / 2,
+      y: gridTop + position.row * CELL_SIZE + CELL_SIZE / 2,
+    }
+  }
+
+  private animateGemMove(gemView: GemView, target: GridPosition): Promise<void> {
+    const cellCenter = this.getCellCenter(target)
+    const targetY = (target.row + target.column) % 2 === 0 ? cellCenter.y - 1 : cellCenter.y
+
+    return new Promise((resolve) => {
+      this.tweens.add({
+        targets: gemView.sprite,
+        x: cellCenter.x,
+        y: targetY,
+        duration: 160,
+        ease: 'Sine.easeInOut',
+        onComplete: () => resolve(),
+      })
+    })
+  }
+
+  private async swapSelectedGems(first: GemView, second: GemView): Promise<void> {
+    this.isSwapping = true
+
+    const firstPosition = { ...first.position }
+    const secondPosition = { ...second.position }
+
+    this.selectedGem = null
+    this.updateSelectionState()
+
+    swapBoardCells(this.boardState, firstPosition, secondPosition)
+
+    this.gemViews[firstPosition.row][firstPosition.column] = second
+    this.gemViews[secondPosition.row][secondPosition.column] = first
+
+    first.position = secondPosition
+    second.position = firstPosition
+
+    await Promise.all([
+      this.animateGemMove(first, secondPosition),
+      this.animateGemMove(second, firstPosition),
+    ])
+
+    this.isSwapping = false
   }
 }
