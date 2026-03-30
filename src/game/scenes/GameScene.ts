@@ -36,7 +36,7 @@ export class GameScene extends Phaser.Scene {
   private gemViews: Array<Array<GemView | null>> = []
   private selectedGem: GemView | null = null
   private matchedGemKeys = new Set<string>()
-  private isSwapping = false
+  private isBoardBusy = false
   private boardLeft = 0
   private boardTop = 0
   private score = 0
@@ -69,7 +69,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
 
     this.add
-      .text(width / 2, height - 28, 'Stage 7: refill empty cells with new gems from above', {
+      .text(width / 2, height - 28, 'Stage 8: resolve cascades and lock input during move', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '16px',
         color: '#f7efe6',
@@ -153,7 +153,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleGemSelection(gemView: GemView): void {
-    if (this.isSwapping) {
+    if (this.isBoardBusy) {
       return
     }
 
@@ -329,12 +329,27 @@ export class GameScene extends Phaser.Scene {
     this.matchedGemKeys.clear()
     this.updateScoreText()
     this.updateSelectionState()
+  }
 
-    const fallMoves = applyGravity(this.boardState)
-    await this.animateGravity(fallMoves)
+  private async resolveBoardCascades(): Promise<void> {
+    while (true) {
+      const matches = findMatches(this.boardState)
 
-    const refillMoves = refillBoard(this.boardState)
-    await this.animateRefill(refillMoves)
+      if (matches.length === 0) {
+        this.matchedGemKeys.clear()
+        this.updateSelectionState()
+        return
+      }
+
+      this.setMatchedState(matches)
+      await this.removeMatchedGems(matches)
+
+      const fallMoves = applyGravity(this.boardState)
+      await this.animateGravity(fallMoves)
+
+      const refillMoves = refillBoard(this.boardState)
+      await this.animateRefill(refillMoves)
+    }
   }
 
   private async animateGravity(moves: FallMove[]): Promise<void> {
@@ -385,48 +400,49 @@ export class GameScene extends Phaser.Scene {
   }
 
   private async swapSelectedGems(first: GemView, second: GemView): Promise<void> {
-    this.isSwapping = true
+    this.isBoardBusy = true
 
-    const firstPosition = { ...first.position }
-    const secondPosition = { ...second.position }
-    this.matchedGemKeys.clear()
+    try {
+      const firstPosition = { ...first.position }
+      const secondPosition = { ...second.position }
+      this.matchedGemKeys.clear()
 
-    this.selectedGem = null
-    this.updateSelectionState()
+      this.selectedGem = null
+      this.updateSelectionState()
 
-    swapBoardCells(this.boardState, firstPosition, secondPosition)
+      swapBoardCells(this.boardState, firstPosition, secondPosition)
 
-    this.gemViews[firstPosition.row][firstPosition.column] = second
-    this.gemViews[secondPosition.row][secondPosition.column] = first
+      this.gemViews[firstPosition.row][firstPosition.column] = second
+      this.gemViews[secondPosition.row][secondPosition.column] = first
 
-    first.position = secondPosition
-    second.position = firstPosition
-
-    await Promise.all([
-      this.animateGemMove(first, secondPosition),
-      this.animateGemMove(second, firstPosition),
-    ])
-
-    const matches = findMatches(this.boardState)
-
-    if (matches.length === 0) {
-      swapBoardCells(this.boardState, secondPosition, firstPosition)
-
-      this.gemViews[firstPosition.row][firstPosition.column] = first
-      this.gemViews[secondPosition.row][secondPosition.column] = second
-
-      first.position = firstPosition
-      second.position = secondPosition
+      first.position = secondPosition
+      second.position = firstPosition
 
       await Promise.all([
-        this.animateGemMove(first, firstPosition),
-        this.animateGemMove(second, secondPosition),
+        this.animateGemMove(first, secondPosition),
+        this.animateGemMove(second, firstPosition),
       ])
-    } else {
-      this.setMatchedState(matches)
-      await this.removeMatchedGems(matches)
-    }
 
-    this.isSwapping = false
+      const matches = findMatches(this.boardState)
+
+      if (matches.length === 0) {
+        swapBoardCells(this.boardState, secondPosition, firstPosition)
+
+        this.gemViews[firstPosition.row][firstPosition.column] = first
+        this.gemViews[secondPosition.row][secondPosition.column] = second
+
+        first.position = firstPosition
+        second.position = secondPosition
+
+        await Promise.all([
+          this.animateGemMove(first, firstPosition),
+          this.animateGemMove(second, secondPosition),
+        ])
+      } else {
+        await this.resolveBoardCascades()
+      }
+    } finally {
+      this.isBoardBusy = false
+    }
   }
 }
