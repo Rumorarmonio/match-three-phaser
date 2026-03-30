@@ -52,12 +52,13 @@ export class GameScene extends Phaser.Scene {
     const boardHeight = BOARD_ROWS * CELL_SIZE + BOARD_PADDING * 2
     this.boardLeft = Math.round((width - boardWidth) / 2)
     this.boardTop = Math.round((height - boardHeight) / 2)
-    this.boardState = createInitialBoard()
+    this.initializeGameState()
 
     this.drawBackground(width, height)
     this.drawBoardFrame(this.boardLeft, this.boardTop, boardWidth, boardHeight)
     this.drawBoard(this.boardState, this.boardLeft + BOARD_PADDING, this.boardTop + BOARD_PADDING)
     this.createScoreText()
+    this.createRestartButton()
 
     this.add
       .text(width / 2, 36, 'Match-3 Start Board', {
@@ -69,12 +70,21 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
 
     this.add
-      .text(width / 2, height - 28, 'Stage 8: resolve cascades and lock input during move', {
+      .text(width / 2, height - 28, 'Stage 9: score HUD and restart button', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '16px',
         color: '#f7efe6',
       })
       .setOrigin(0.5)
+  }
+
+  private initializeGameState(): void {
+    this.boardState = createInitialBoard()
+    this.gemViews = []
+    this.selectedGem = null
+    this.matchedGemKeys.clear()
+    this.isBoardBusy = false
+    this.score = 0
   }
 
   private drawBackground(width: number, height: number): void {
@@ -267,6 +277,30 @@ export class GameScene extends Phaser.Scene {
     })
 
     this.updateScoreText()
+  }
+
+  private createRestartButton(): void {
+    const button = this.add
+      .text(28, 62, 'Restart', {
+        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
+        fontSize: '18px',
+        color: '#24173f',
+        backgroundColor: '#f7b267',
+        padding: { x: 10, y: 6 },
+      })
+      .setInteractive({ useHandCursor: true })
+
+    button.on('pointerdown', () => {
+      this.scene.restart()
+    })
+
+    button.on('pointerover', () => {
+      button.setStyle({ backgroundColor: '#ffd08a' })
+    })
+
+    button.on('pointerout', () => {
+      button.setStyle({ backgroundColor: '#f7b267' })
+    })
   }
 
   private updateScoreText(): void {
