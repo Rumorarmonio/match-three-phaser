@@ -265,6 +265,33 @@ export class GameScene extends Phaser.Scene {
     })
   }
 
+  private animateGemFall(gemView: GemView, target: GridPosition): Promise<void> {
+    const targetPosition = this.getCellSpritePosition(target)
+    const fallDistance = Math.abs(targetPosition.y - gemView.sprite.y)
+    const settleOffset = Math.min(10, Math.max(4, fallDistance * 0.06))
+    const fallDuration = Phaser.Math.Clamp(140 + fallDistance * 0.22, 140, 280)
+    const bounceDuration = Phaser.Math.Clamp(90 + fallDistance * 0.08, 90, 150)
+
+    return new Promise((resolve) => {
+      this.tweens.add({
+        targets: gemView.sprite,
+        x: targetPosition.x,
+        y: targetPosition.y + settleOffset,
+        duration: fallDuration,
+        ease: 'Quad.easeIn',
+        onComplete: () => {
+          this.tweens.add({
+            targets: gemView.sprite,
+            y: targetPosition.y,
+            duration: bounceDuration,
+            ease: 'Sine.easeOut',
+            onComplete: () => resolve(),
+          })
+        },
+      })
+    })
+  }
+
   private getCellSpritePosition(position: GridPosition): { x: number; y: number } {
     const cellCenter = this.getCellCenter(position)
 
@@ -691,7 +718,7 @@ export class GameScene extends Phaser.Scene {
         this.gemViews[move.to.row][move.to.column] = gemView
         gemView.position = { ...move.to }
 
-        return this.animateGemMove(gemView, move.to)
+        return this.animateGemFall(gemView, move.to)
       })
       .filter((animation): animation is Promise<void> => Boolean(animation))
 
@@ -714,7 +741,7 @@ export class GameScene extends Phaser.Scene {
 
       this.gemViews[move.to.row][move.to.column] = gemView
 
-      return this.animateGemMove(gemView, move.to)
+      return this.animateGemFall(gemView, move.to)
     })
 
     await Promise.all(animations)
