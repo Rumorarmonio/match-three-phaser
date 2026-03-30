@@ -129,6 +129,7 @@ export class GameScene extends Phaser.Scene {
           0.85,
         )
         cell.setStrokeStyle(1, 0xffffff, 0.08)
+        cell.setDepth(0)
 
         if (gemType === null) {
           viewRow.push(null)
@@ -146,6 +147,7 @@ export class GameScene extends Phaser.Scene {
         gem.setStrokeStyle(3, 0xffffff, 0.18)
         gem.setRotation(Phaser.Math.DegToRad(45))
         gem.setInteractive({ useHandCursor: true })
+        gem.setDepth(1)
 
         if ((position.row + position.column) % 2 === 0) {
           gem.y -= 1
