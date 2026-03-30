@@ -10,6 +10,7 @@ import { BOARD_COLUMNS, BOARD_PADDING, BOARD_ROWS, CELL_SIZE } from '../constant
 import { findMatches } from '../matchFinder'
 import type {
   BoardState,
+  BoardSettings,
   FallMove,
   GemType,
   GridPosition,
@@ -31,6 +32,13 @@ type GemView = {
   sprite: Phaser.GameObjects.Rectangle
 }
 
+type GameSceneData = {
+  boardColumns?: number
+  boardRows?: number
+}
+
+const BOARD_SIZE_OPTIONS = [6, 8, 10] as const
+
 export class GameScene extends Phaser.Scene {
   private boardState: BoardState = []
   private gemViews: Array<Array<GemView | null>> = []
@@ -42,31 +50,37 @@ export class GameScene extends Phaser.Scene {
   private dragPreviewTargetGem: GemView | null = null
   private boardLeft = 0
   private boardTop = 0
+  private boardColumns = BOARD_COLUMNS
+  private boardRows = BOARD_ROWS
   private score = 0
   private scoreText!: Phaser.GameObjects.Text
+  private boardSizeText!: Phaser.GameObjects.Text
 
   constructor() {
     super('game')
   }
 
-  create(): void {
+  create(data: GameSceneData = {}): void {
+    this.initializeBoardSettings(data)
+    this.initializeGameState()
+
     const { width, height } = this.scale
-    const boardWidth = BOARD_COLUMNS * CELL_SIZE + BOARD_PADDING * 2
-    const boardHeight = BOARD_ROWS * CELL_SIZE + BOARD_PADDING * 2
+    const boardWidth = this.boardColumns * CELL_SIZE + BOARD_PADDING * 2
+    const boardHeight = this.boardRows * CELL_SIZE + BOARD_PADDING * 2
     const boardTopOffset = 64
     this.boardLeft = Math.round((width - boardWidth) / 2)
     this.boardTop = Math.round((height - boardHeight) / 2) - boardTopOffset
-    this.initializeGameState()
 
     this.drawBackground(width, height)
     this.drawBoardFrame(this.boardLeft, this.boardTop, boardWidth, boardHeight)
     this.drawBoard(this.boardState, this.boardLeft + BOARD_PADDING, this.boardTop + BOARD_PADDING)
     this.registerDragHandlers()
     this.createScoreText()
+    this.createBoardSizeControls()
     this.createRestartButton()
 
     this.add
-      .text(width / 2, height - 28, 'Stage 10: drag-and-drop gem swapping', {
+      .text(width / 2, height - 28, 'Stage 12: runtime board size controls', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '16px',
         color: '#f7efe6',
@@ -74,8 +88,13 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
   }
 
+  private initializeBoardSettings(data: GameSceneData): void {
+    this.boardColumns = data.boardColumns ?? BOARD_COLUMNS
+    this.boardRows = data.boardRows ?? BOARD_ROWS
+  }
+
   private initializeGameState(): void {
-    this.boardState = createInitialBoard()
+    this.boardState = createInitialBoard(this.getBoardSettings())
     this.gemViews = []
     this.selectedGem = null
     this.matchedGemKeys.clear()
@@ -84,6 +103,13 @@ export class GameScene extends Phaser.Scene {
     this.dragStartPointerPosition = null
     this.dragPreviewTargetGem = null
     this.score = 0
+  }
+
+  private getBoardSettings(): BoardSettings {
+    return {
+      rows: this.boardRows,
+      columns: this.boardColumns,
+    }
   }
 
   private drawBackground(width: number, height: number): void {
@@ -368,9 +394,9 @@ export class GameScene extends Phaser.Scene {
 
     if (
       targetPosition.row < 0 ||
-      targetPosition.row >= BOARD_ROWS ||
+      targetPosition.row >= this.boardRows ||
       targetPosition.column < 0 ||
-      targetPosition.column >= BOARD_COLUMNS
+      targetPosition.column >= this.boardColumns
     ) {
       return null
     }
@@ -448,9 +474,99 @@ export class GameScene extends Phaser.Scene {
     this.updateScoreText()
   }
 
+  private createBoardSizeControls(): void {
+    this.add.text(28, 96, 'Board', {
+      fontFamily: 'Trebuchet MS, Verdana, sans-serif',
+      fontSize: '18px',
+      color: '#f7b267',
+      fontStyle: 'bold',
+    })
+
+    const decreaseColumnsButton = this.createBoardSizeButton(28, 124, '-C')
+    decreaseColumnsButton.on('pointerdown', () => {
+      this.changeBoardSize('columns', -1)
+    })
+
+    this.boardSizeText = this.add.text(85, 142, '', {
+      fontFamily: 'Trebuchet MS, Verdana, sans-serif',
+      fontSize: '18px',
+      color: '#fff4d6',
+    })
+
+    const increaseColumnsButton = this.createBoardSizeButton(218, 124, '+C')
+    increaseColumnsButton.on('pointerdown', () => {
+      this.changeBoardSize('columns', 1)
+    })
+
+    const decreaseRowsButton = this.createBoardSizeButton(28, 160, '-R')
+    decreaseRowsButton.on('pointerdown', () => {
+      this.changeBoardSize('rows', -1)
+    })
+
+    const increaseRowsButton = this.createBoardSizeButton(218, 160, '+R')
+    increaseRowsButton.on('pointerdown', () => {
+      this.changeBoardSize('rows', 1)
+    })
+
+    this.updateBoardSizeText()
+  }
+
+  private createBoardSizeButton(
+    x: number,
+    y: number,
+    label: string,
+  ): Phaser.GameObjects.Text {
+    const button = this.add
+      .text(x, y, label, {
+        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
+        fontSize: '16px',
+        color: '#24173f',
+        backgroundColor: '#f7b267',
+        padding: { x: 10, y: 6 },
+      })
+      .setInteractive({ useHandCursor: true })
+
+    button.on('pointerover', () => {
+      button.setStyle({ backgroundColor: '#ffd08a' })
+    })
+
+    button.on('pointerout', () => {
+      button.setStyle({ backgroundColor: '#f7b267' })
+    })
+
+    return button
+  }
+
+  private updateBoardSizeText(): void {
+    this.boardSizeText.setText(`${this.boardColumns} cols x ${this.boardRows} rows`)
+  }
+
+  private changeBoardSize(axis: 'columns' | 'rows', direction: -1 | 1): void {
+    if (this.isBoardBusy) {
+      return
+    }
+
+    const currentValue = axis === 'columns' ? this.boardColumns : this.boardRows
+    const optionIndex = (BOARD_SIZE_OPTIONS as readonly number[]).indexOf(currentValue)
+    const nextIndex = Phaser.Math.Clamp(optionIndex + direction, 0, BOARD_SIZE_OPTIONS.length - 1)
+    const nextValue = BOARD_SIZE_OPTIONS[nextIndex]
+
+    if (nextValue === currentValue) {
+      return
+    }
+
+    const nextBoardColumns = axis === 'columns' ? nextValue : this.boardColumns
+    const nextBoardRows = axis === 'rows' ? nextValue : this.boardRows
+
+    this.scene.restart({
+      boardColumns: nextBoardColumns,
+      boardRows: nextBoardRows,
+    })
+  }
+
   private createRestartButton(): void {
     const button = this.add
-      .text(28, 62, 'Restart', {
+      .text(28, 198, 'Restart', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '18px',
         color: '#24173f',
@@ -460,7 +576,10 @@ export class GameScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
 
     button.on('pointerdown', () => {
-      this.scene.restart()
+      this.scene.restart({
+        boardColumns: this.boardColumns,
+        boardRows: this.boardRows,
+      })
     })
 
     button.on('pointerover', () => {
@@ -547,10 +666,10 @@ export class GameScene extends Phaser.Scene {
       this.setMatchedState(matches)
       await this.removeMatchedGems(matches)
 
-      const fallMoves = applyGravity(this.boardState)
+      const fallMoves = applyGravity(this.boardState, this.getBoardSettings())
       await this.animateGravity(fallMoves)
 
-      const refillMoves = refillBoard(this.boardState)
+      const refillMoves = refillBoard(this.boardState, this.getBoardSettings())
       await this.animateRefill(refillMoves)
     }
   }

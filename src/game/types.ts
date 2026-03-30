@@ -5,6 +5,11 @@ export type GridPosition = {
   column: number
 }
 
+export type BoardSettings = {
+  rows: number
+  columns: number
+}
+
 export type GemType = (typeof GEM_TYPES)[number]
 
 export type BoardCell = GemType | null

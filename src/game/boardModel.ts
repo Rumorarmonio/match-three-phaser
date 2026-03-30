@@ -1,6 +1,7 @@
 import { BOARD_COLUMNS, BOARD_ROWS, GEM_TYPES } from './constants'
 import type {
   BoardState,
+  BoardSettings,
   FallMove,
   GemType,
   GridPosition,
@@ -18,7 +19,9 @@ const createsMatchAt = (
   row: number,
   column: number,
   gemType: GemType,
+  boardSettings: BoardSettings,
 ): boolean => {
+  const { columns, rows } = boardSettings
   let horizontalCount = 1
   let verticalCount = 1
 
@@ -30,7 +33,7 @@ const createsMatchAt = (
     horizontalCount += 1
   }
 
-  for (let currentColumn = column + 1; currentColumn < BOARD_COLUMNS; currentColumn += 1) {
+  for (let currentColumn = column + 1; currentColumn < columns; currentColumn += 1) {
     if (board[row][currentColumn] !== gemType) {
       break
     }
@@ -46,7 +49,7 @@ const createsMatchAt = (
     verticalCount += 1
   }
 
-  for (let currentRow = row + 1; currentRow < BOARD_ROWS; currentRow += 1) {
+  for (let currentRow = row + 1; currentRow < rows; currentRow += 1) {
     if (board[currentRow]?.[column] !== gemType) {
       break
     }
@@ -57,16 +60,19 @@ const createsMatchAt = (
   return horizontalCount >= 3 || verticalCount >= 3
 }
 
-export const createInitialBoard = (): BoardState => {
+export const createInitialBoard = (
+  boardSettings: BoardSettings = { rows: BOARD_ROWS, columns: BOARD_COLUMNS },
+): BoardState => {
+  const { rows, columns } = boardSettings
   const board: BoardState = []
 
-  for (let row = 0; row < BOARD_ROWS; row += 1) {
+  for (let row = 0; row < rows; row += 1) {
     const currentRow: GemType[] = []
     board.push(currentRow)
 
-    for (let column = 0; column < BOARD_COLUMNS; column += 1) {
+    for (let column = 0; column < columns; column += 1) {
       const availableGemTypes = GEM_TYPES.filter(
-        (gemType) => !createsMatchAt(board, row, column, gemType),
+        (gemType) => !createsMatchAt(board, row, column, gemType, boardSettings),
       )
 
       currentRow.push(pickRandomGemType(availableGemTypes))
@@ -94,13 +100,17 @@ export const clearMatchedCells = (board: BoardState, matches: MatchGroup[]): voi
   }
 }
 
-export const applyGravity = (board: BoardState): FallMove[] => {
+export const applyGravity = (
+  board: BoardState,
+  boardSettings: BoardSettings = { rows: BOARD_ROWS, columns: BOARD_COLUMNS },
+): FallMove[] => {
+  const { columns, rows } = boardSettings
   const moves: FallMove[] = []
 
-  for (let column = 0; column < BOARD_COLUMNS; column += 1) {
-    let targetRow = BOARD_ROWS - 1
+  for (let column = 0; column < columns; column += 1) {
+    let targetRow = rows - 1
 
-    for (let row = BOARD_ROWS - 1; row >= 0; row -= 1) {
+    for (let row = rows - 1; row >= 0; row -= 1) {
       const gemType = board[row][column]
 
       if (gemType === null) {
@@ -123,19 +133,23 @@ export const applyGravity = (board: BoardState): FallMove[] => {
   return moves
 }
 
-export const refillBoard = (board: BoardState): RefillMove[] => {
+export const refillBoard = (
+  board: BoardState,
+  boardSettings: BoardSettings = { rows: BOARD_ROWS, columns: BOARD_COLUMNS },
+): RefillMove[] => {
+  const { columns, rows } = boardSettings
   const moves: RefillMove[] = []
 
-  for (let column = 0; column < BOARD_COLUMNS; column += 1) {
+  for (let column = 0; column < columns; column += 1) {
     let spawnRow = -1
 
-    for (let row = BOARD_ROWS - 1; row >= 0; row -= 1) {
+    for (let row = rows - 1; row >= 0; row -= 1) {
       if (board[row][column] !== null) {
         continue
       }
 
       const availableGemTypes = GEM_TYPES.filter(
-        (gemType) => !createsMatchAt(board, row, column, gemType),
+        (gemType) => !createsMatchAt(board, row, column, gemType, boardSettings),
       )
       const gemType = pickRandomGemType(availableGemTypes)
 
