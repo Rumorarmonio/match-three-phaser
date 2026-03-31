@@ -50,6 +50,7 @@ const DEFAULT_BACKGROUND_MUSIC_VOLUME = 0.14
 const MUSIC_VOLUME_TRACK_WIDTH = 190
 const BACKGROUND_MUSIC_VOLUME_REGISTRY_KEY = 'backgroundMusicVolume'
 const BACKGROUND_MUSIC_MUTED_REGISTRY_KEY = 'backgroundMusicMuted'
+const MATCH_SOUND_CASCADE_DETUNE_STEP = 120
 
 export class GameScene extends Phaser.Scene {
   private boardState: BoardState = []
@@ -76,6 +77,7 @@ export class GameScene extends Phaser.Scene {
   private musicVolumeValueText!: Phaser.GameObjects.Text
   private musicMuteButton!: Phaser.GameObjects.Text
   private isMusicVolumeDragging = false
+  private matchSoundCascadeStep = 0
 
   constructor() {
     super('game')
@@ -126,6 +128,7 @@ export class GameScene extends Phaser.Scene {
     this.dragStartPointerPosition = null
     this.dragPreviewTargetGem = null
     this.score = 0
+    this.matchSoundCascadeStep = 0
   }
 
   private getBoardSettings(): BoardSettings {
@@ -556,7 +559,18 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playMatchSound(): void {
-    this.sound.play(MATCH_SOUND_KEY, { volume: 0.5 })
+    this.sound.play(MATCH_SOUND_KEY, {
+      volume: 0.5,
+      detune: this.matchSoundCascadeStep * MATCH_SOUND_CASCADE_DETUNE_STEP,
+    })
+  }
+
+  private resetMatchSoundCascade(): void {
+    this.matchSoundCascadeStep = 0
+  }
+
+  private advanceMatchSoundCascade(): void {
+    this.matchSoundCascadeStep += 1
   }
 
   private getStoredBackgroundMusicVolume(): number {
@@ -880,6 +894,7 @@ export class GameScene extends Phaser.Scene {
 
     if (matchedSprites.length > 0) {
       this.playMatchSound()
+      this.advanceMatchSoundCascade()
     }
 
     await new Promise<void>((resolve) => {
@@ -918,23 +933,29 @@ export class GameScene extends Phaser.Scene {
   }
 
   private async resolveBoardCascades(): Promise<void> {
-    while (true) {
-      const matches = findMatches(this.boardState)
+    this.resetMatchSoundCascade()
 
-      if (matches.length === 0) {
-        this.matchedGemKeys.clear()
-        this.updateSelectionState()
-        return
+    try {
+      while (true) {
+        const matches = findMatches(this.boardState)
+
+        if (matches.length === 0) {
+          this.matchedGemKeys.clear()
+          this.updateSelectionState()
+          return
+        }
+
+        this.setMatchedState(matches)
+        await this.removeMatchedGems(matches)
+
+        const fallMoves = applyGravity(this.boardState, this.getBoardSettings())
+        await this.animateGravity(fallMoves)
+
+        const refillMoves = refillBoard(this.boardState, this.getBoardSettings())
+        await this.animateRefill(refillMoves)
       }
-
-      this.setMatchedState(matches)
-      await this.removeMatchedGems(matches)
-
-      const fallMoves = applyGravity(this.boardState, this.getBoardSettings())
-      await this.animateGravity(fallMoves)
-
-      const refillMoves = refillBoard(this.boardState, this.getBoardSettings())
-      await this.animateRefill(refillMoves)
+    } finally {
+      this.resetMatchSoundCascade()
     }
   }
 
