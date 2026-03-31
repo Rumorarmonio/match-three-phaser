@@ -38,6 +38,9 @@ type GameSceneData = {
 }
 
 const BOARD_SIZE_OPTIONS = [6, 8, 10] as const
+const SWAP_SOUND_KEY = 'swap-sound'
+const MATCH_SOUND_KEY = 'match-sound'
+const BACKGROUND_MUSIC_KEY = 'background-music'
 
 export class GameScene extends Phaser.Scene {
   private boardState: BoardState = []
@@ -55,6 +58,7 @@ export class GameScene extends Phaser.Scene {
   private score = 0
   private scoreText!: Phaser.GameObjects.Text
   private boardSizeText!: Phaser.GameObjects.Text
+  private backgroundMusic: Phaser.Sound.BaseSound | null = null
 
   constructor() {
     super('game')
@@ -78,9 +82,10 @@ export class GameScene extends Phaser.Scene {
     this.createScoreText()
     this.createBoardSizeControls()
     this.createRestartButton()
+    this.setupAudio()
 
     this.add
-      .text(width / 2, height - 28, 'Stage 12: runtime board size controls', {
+      .text(width / 2, height - 28, 'Stage 13: audio feedback and looped music', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '16px',
         color: '#f7efe6',
@@ -488,6 +493,41 @@ export class GameScene extends Phaser.Scene {
     return gemView
   }
 
+  private setupAudio(): void {
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleSceneShutdown, this)
+    this.backgroundMusic = this.sound.add(BACKGROUND_MUSIC_KEY, {
+      loop: true,
+      volume: 0.32,
+    })
+
+    this.tryStartBackgroundMusic()
+    this.input.once('pointerdown', () => {
+      this.tryStartBackgroundMusic()
+    })
+  }
+
+  private tryStartBackgroundMusic(): void {
+    if (!this.backgroundMusic || this.backgroundMusic.isPlaying || this.sound.locked) {
+      return
+    }
+
+    this.backgroundMusic.play()
+  }
+
+  private handleSceneShutdown(): void {
+    this.backgroundMusic?.stop()
+    this.backgroundMusic?.destroy()
+    this.backgroundMusic = null
+  }
+
+  private playSwapSound(): void {
+    this.sound.play(SWAP_SOUND_KEY, { volume: 0.4 })
+  }
+
+  private playMatchSound(): void {
+    this.sound.play(MATCH_SOUND_KEY, { volume: 0.5 })
+  }
+
   private createScoreText(): void {
     this.scoreText = this.add.text(28, 28, '', {
       fontFamily: 'Trebuchet MS, Verdana, sans-serif',
@@ -643,6 +683,10 @@ export class GameScene extends Phaser.Scene {
       .map((position) => this.gemViews[position.row][position.column]?.sprite)
       .filter((sprite): sprite is Phaser.GameObjects.Rectangle => Boolean(sprite))
 
+    if (matchedSprites.length > 0) {
+      this.playMatchSound()
+    }
+
     await new Promise<void>((resolve) => {
       if (matchedSprites.length === 0) {
         resolve()
@@ -764,6 +808,7 @@ export class GameScene extends Phaser.Scene {
 
       first.position = secondPosition
       second.position = firstPosition
+      this.playSwapSound()
 
       await Promise.all([
         this.animateGemMove(first, secondPosition),
