@@ -529,6 +529,8 @@ export class GameScene extends Phaser.Scene {
   private setupAudio(): void {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleSceneShutdown, this)
     this.sound.pauseOnBlur = false
+    this.sound.off('unlocked', this.handleAudioUnlocked, this)
+    this.sound.on('unlocked', this.handleAudioUnlocked, this)
     this.backgroundMusicVolume = this.getStoredBackgroundMusicVolume()
     this.isBackgroundMusicMuted = this.getStoredBackgroundMusicMuted()
 
@@ -550,6 +552,10 @@ export class GameScene extends Phaser.Scene {
     })
   }
 
+  private handleAudioUnlocked(): void {
+    this.tryStartBackgroundMusic()
+  }
+
   private tryStartBackgroundMusic(): void {
     if (!this.backgroundMusic || this.backgroundMusic.isPlaying || this.sound.locked) {
       return
@@ -559,6 +565,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleSceneShutdown(): void {
+    this.sound.off('unlocked', this.handleAudioUnlocked, this)
     this.input.off('pointermove', this.handleMusicVolumePointerMove, this)
     this.input.off('pointerup', this.stopMusicVolumeDrag, this)
     this.input.off('gameout', this.stopMusicVolumeDrag, this)
