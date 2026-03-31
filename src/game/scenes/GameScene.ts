@@ -37,10 +37,19 @@ type GameSceneData = {
   boardRows?: number
 }
 
+type BackgroundMusicSound = Phaser.Sound.BaseSound & {
+  setLoop(value: boolean): Phaser.Sound.BaseSound
+  setVolume(value: number): Phaser.Sound.BaseSound
+}
+
 const BOARD_SIZE_OPTIONS = [6, 8, 10] as const
 const SWAP_SOUND_KEY = 'swap-sound'
 const MATCH_SOUND_KEY = 'match-sound'
 const BACKGROUND_MUSIC_KEY = 'background-music'
+const DEFAULT_BACKGROUND_MUSIC_VOLUME = 0.14
+const MUSIC_VOLUME_TRACK_WIDTH = 190
+const BACKGROUND_MUSIC_VOLUME_REGISTRY_KEY = 'backgroundMusicVolume'
+const BACKGROUND_MUSIC_MUTED_REGISTRY_KEY = 'backgroundMusicMuted'
 
 export class GameScene extends Phaser.Scene {
   private boardState: BoardState = []
@@ -58,7 +67,15 @@ export class GameScene extends Phaser.Scene {
   private score = 0
   private scoreText!: Phaser.GameObjects.Text
   private boardSizeText!: Phaser.GameObjects.Text
-  private backgroundMusic: Phaser.Sound.BaseSound | null = null
+  private backgroundMusic: BackgroundMusicSound | null = null
+  private backgroundMusicVolume = DEFAULT_BACKGROUND_MUSIC_VOLUME
+  private isBackgroundMusicMuted = false
+  private musicVolumeTrack!: Phaser.GameObjects.Rectangle
+  private musicVolumeFill!: Phaser.GameObjects.Rectangle
+  private musicVolumeThumb!: Phaser.GameObjects.Rectangle
+  private musicVolumeValueText!: Phaser.GameObjects.Text
+  private musicMuteButton!: Phaser.GameObjects.Text
+  private isMusicVolumeDragging = false
 
   constructor() {
     super('game')
@@ -79,13 +96,14 @@ export class GameScene extends Phaser.Scene {
     this.drawBoardFrame(this.boardLeft, this.boardTop, boardWidth, boardHeight)
     this.drawBoard(this.boardState, this.boardLeft + BOARD_PADDING, this.boardTop + BOARD_PADDING)
     this.registerDragHandlers()
+    this.setupAudio()
     this.createScoreText()
     this.createBoardSizeControls()
     this.createRestartButton()
-    this.setupAudio()
+    this.createMusicVolumeControl()
 
     this.add
-      .text(width / 2, height - 28, 'Stage 13: audio feedback and looped music', {
+      .text(width / 2, height - 28, 'Stage 13: music volume control and looped audio', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '16px',
         color: '#f7efe6',
@@ -495,10 +513,21 @@ export class GameScene extends Phaser.Scene {
 
   private setupAudio(): void {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleSceneShutdown, this)
-    this.backgroundMusic = this.sound.add(BACKGROUND_MUSIC_KEY, {
-      loop: true,
-      volume: 0.32,
-    })
+    this.sound.pauseOnBlur = false
+    this.backgroundMusicVolume = this.getStoredBackgroundMusicVolume()
+    this.isBackgroundMusicMuted = this.getStoredBackgroundMusicMuted()
+
+    const existingMusic = this.sound.getAll<BackgroundMusicSound>(BACKGROUND_MUSIC_KEY)[0] ?? null
+    this.backgroundMusic = existingMusic
+
+    if (!this.backgroundMusic) {
+      this.backgroundMusic = this.sound.add(BACKGROUND_MUSIC_KEY, {
+        loop: true,
+        volume: this.backgroundMusicVolume,
+      }) as BackgroundMusicSound
+    }
+
+    this.applyBackgroundMusicState()
 
     this.tryStartBackgroundMusic()
     this.input.once('pointerdown', () => {
@@ -515,8 +544,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleSceneShutdown(): void {
-    this.backgroundMusic?.stop()
-    this.backgroundMusic?.destroy()
+    this.input.off('pointermove', this.handleMusicVolumePointerMove, this)
+    this.input.off('pointerup', this.stopMusicVolumeDrag, this)
+    this.input.off('gameout', this.stopMusicVolumeDrag, this)
+    this.isMusicVolumeDragging = false
     this.backgroundMusic = null
   }
 
@@ -526,6 +557,170 @@ export class GameScene extends Phaser.Scene {
 
   private playMatchSound(): void {
     this.sound.play(MATCH_SOUND_KEY, { volume: 0.5 })
+  }
+
+  private getStoredBackgroundMusicVolume(): number {
+    const storedVolume = this.registry.get(BACKGROUND_MUSIC_VOLUME_REGISTRY_KEY)
+
+    if (typeof storedVolume !== 'number') {
+      return DEFAULT_BACKGROUND_MUSIC_VOLUME
+    }
+
+    return Phaser.Math.Clamp(storedVolume, 0, 1)
+  }
+
+  private getStoredBackgroundMusicMuted(): boolean {
+    return this.registry.get(BACKGROUND_MUSIC_MUTED_REGISTRY_KEY) === true
+  }
+
+  private applyBackgroundMusicState(): void {
+    if (!this.backgroundMusic) {
+      return
+    }
+
+    this.backgroundMusic.setLoop(true)
+    this.backgroundMusic.setVolume(this.isBackgroundMusicMuted ? 0 : this.backgroundMusicVolume)
+  }
+
+  private createMusicVolumeControl(): void {
+    const labelY = 240
+    const trackY = 273
+    const trackLeft = 28
+
+    this.add.text(trackLeft, labelY, 'Music', {
+      fontFamily: 'Trebuchet MS, Verdana, sans-serif',
+      fontSize: '18px',
+      color: '#f7b267',
+      fontStyle: 'bold',
+    })
+
+    this.musicVolumeTrack = this.add
+      .rectangle(trackLeft, trackY, MUSIC_VOLUME_TRACK_WIDTH, 10, 0x4e4167, 0.95)
+      .setOrigin(0, 0.5)
+
+    this.musicVolumeFill = this.add
+      .rectangle(trackLeft, trackY, MUSIC_VOLUME_TRACK_WIDTH, 10, 0xf7b267, 1)
+      .setOrigin(0, 0.5)
+
+    this.musicVolumeThumb = this.add
+      .rectangle(trackLeft, trackY, 14, 24, 0xfff4d6, 1)
+      .setStrokeStyle(2, 0x24173f, 0.65)
+
+    const trackHitArea = this.add
+      .rectangle(trackLeft, trackY, MUSIC_VOLUME_TRACK_WIDTH, 26, 0x000000, 0.001)
+      .setOrigin(0, 0.5)
+      .setInteractive({ useHandCursor: true })
+
+    this.musicVolumeThumb.setInteractive({ useHandCursor: true })
+
+    trackHitArea.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      this.startMusicVolumeDrag(pointer)
+    })
+
+    this.musicVolumeThumb.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      this.startMusicVolumeDrag(pointer)
+    })
+
+    this.input.on('pointermove', this.handleMusicVolumePointerMove, this)
+    this.input.on('pointerup', this.stopMusicVolumeDrag, this)
+    this.input.on('gameout', this.stopMusicVolumeDrag, this)
+
+    this.musicVolumeValueText = this.add.text(trackLeft + MUSIC_VOLUME_TRACK_WIDTH + 12, trackY - 10, '', {
+      fontFamily: 'Trebuchet MS, Verdana, sans-serif',
+      fontSize: '16px',
+      color: '#fff4d6',
+    })
+
+    this.musicMuteButton = this.add
+      .text(trackLeft, 294, '', {
+        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
+        fontSize: '16px',
+        color: '#24173f',
+        backgroundColor: '#f7b267',
+        padding: { x: 10, y: 6 },
+      })
+      .setInteractive({ useHandCursor: true })
+
+    this.musicMuteButton.on('pointerdown', () => {
+      this.toggleBackgroundMusicMute()
+    })
+
+    this.musicMuteButton.on('pointerover', () => {
+      this.musicMuteButton.setStyle({ backgroundColor: '#ffd08a' })
+    })
+
+    this.musicMuteButton.on('pointerout', () => {
+      this.updateMusicMuteButton()
+    })
+
+    this.updateMusicVolumeControl()
+  }
+
+  private startMusicVolumeDrag(pointer: Phaser.Input.Pointer): void {
+    this.isMusicVolumeDragging = true
+    this.updateMusicVolumeFromPointer(pointer.x)
+    this.tryStartBackgroundMusic()
+  }
+
+  private handleMusicVolumePointerMove(pointer: Phaser.Input.Pointer): void {
+    if (!this.isMusicVolumeDragging) {
+      return
+    }
+
+    this.updateMusicVolumeFromPointer(pointer.x)
+  }
+
+  private stopMusicVolumeDrag(): void {
+    this.isMusicVolumeDragging = false
+  }
+
+  private updateMusicVolumeFromPointer(pointerX: number): void {
+    const volume = Phaser.Math.Clamp(
+      (pointerX - this.musicVolumeTrack.x) / MUSIC_VOLUME_TRACK_WIDTH,
+      0,
+      1,
+    )
+
+    this.setBackgroundMusicVolume(volume)
+  }
+
+  private setBackgroundMusicVolume(volume: number): void {
+    this.backgroundMusicVolume = volume
+    this.registry.set(BACKGROUND_MUSIC_VOLUME_REGISTRY_KEY, volume)
+    this.applyBackgroundMusicState()
+    this.updateMusicVolumeControl()
+  }
+
+  private toggleBackgroundMusicMute(): void {
+    this.isBackgroundMusicMuted = !this.isBackgroundMusicMuted
+    this.registry.set(BACKGROUND_MUSIC_MUTED_REGISTRY_KEY, this.isBackgroundMusicMuted)
+    this.applyBackgroundMusicState()
+    this.updateMusicVolumeControl()
+  }
+
+  private updateMusicMuteButton(): void {
+    this.musicMuteButton.setText(this.isBackgroundMusicMuted ? 'Unmute' : 'Mute')
+    this.musicMuteButton.setStyle({
+      backgroundColor: this.isBackgroundMusicMuted ? '#ffd08a' : '#f7b267',
+    })
+  }
+
+  private updateMusicVolumeControl(): void {
+    const fillWidth = Math.max(0, MUSIC_VOLUME_TRACK_WIDTH * this.backgroundMusicVolume)
+    const thumbX = this.musicVolumeTrack.x + fillWidth
+
+    this.musicVolumeFill.width = fillWidth
+    this.musicVolumeThumb.x = Phaser.Math.Clamp(
+      thumbX,
+      this.musicVolumeTrack.x,
+      this.musicVolumeTrack.x + MUSIC_VOLUME_TRACK_WIDTH,
+    )
+    this.musicVolumeValueText.setText(
+      this.isBackgroundMusicMuted
+        ? `Muted ${Math.round(this.backgroundMusicVolume * 100)}%`
+        : `${Math.round(this.backgroundMusicVolume * 100)}%`,
+    )
+    this.updateMusicMuteButton()
   }
 
   private createScoreText(): void {
