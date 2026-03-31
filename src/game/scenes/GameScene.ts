@@ -8,28 +8,13 @@ import {
 } from '../boardModel'
 import { BOARD_COLUMNS, BOARD_PADDING, BOARD_ROWS, CELL_SIZE } from '../constants'
 import { findMatches } from '../matchFinder'
-import type {
-  BoardState,
-  BoardSettings,
-  FallMove,
-  GemType,
-  GridPosition,
-  MatchGroup,
-  RefillMove,
-} from '../types'
-
-const GEM_COLORS: Record<GemType, number> = {
-  ruby: 0xff5d8f,
-  amber: 0xf7b267,
-  lime: 0x7ae582,
-  cyan: 0x55d6ff,
-  violet: 0xc77dff,
-}
+import type { BoardState, BoardSettings, FallMove, GemType, GridPosition, MatchGroup, RefillMove } from '../types'
 
 type GemView = {
   position: GridPosition
   gemType: GemType
-  sprite: Phaser.GameObjects.Rectangle
+  sprite: Phaser.GameObjects.Image
+  highlight: Phaser.GameObjects.Rectangle
 }
 
 type GameSceneData = {
@@ -46,11 +31,20 @@ const BOARD_SIZE_OPTIONS = [6, 8, 10] as const
 const SWAP_SOUND_KEY = 'swap-sound'
 const MATCH_SOUND_KEY = 'match-sound'
 const BACKGROUND_MUSIC_KEY = 'background-music'
+const GEMS_SPRITE_SHEET_KEY = 'gems-sprite-sheet'
 const DEFAULT_BACKGROUND_MUSIC_VOLUME = 0.14
 const MUSIC_VOLUME_TRACK_WIDTH = 190
 const BACKGROUND_MUSIC_VOLUME_REGISTRY_KEY = 'backgroundMusicVolume'
 const BACKGROUND_MUSIC_MUTED_REGISTRY_KEY = 'backgroundMusicMuted'
 const MATCH_SOUND_CASCADE_DETUNE_STEP = 120
+const GEM_SPRITE_FRAME_BY_TYPE: Record<GemType, number> = {
+  ruby: 0,
+  cyan: 1,
+  amber: 2,
+  lime: 3,
+  violet: 4,
+}
+const GEM_BASE_SCALE = (CELL_SIZE - 6) / 128
 
 export class GameScene extends Phaser.Scene {
   private boardState: BoardState = []
@@ -249,11 +243,12 @@ export class GameScene extends Phaser.Scene {
         const isSelected = this.selectedGem === gemView
         const isMatched = this.matchedGemKeys.has(this.getPositionKey(gemView.position))
         const strokeColor = isSelected ? 0xfff4d6 : isMatched ? 0x7ae582 : 0xffffff
-        const strokeAlpha = isSelected ? 0.95 : isMatched ? 0.92 : 0.18
+        const strokeAlpha = isSelected ? 0.95 : isMatched ? 0.92 : 0
         const scale = isSelected ? 1.08 : isMatched ? 1.04 : 1
 
-        gemView.sprite.setStrokeStyle(3, strokeColor, strokeAlpha)
-        gemView.sprite.setScale(scale)
+        gemView.highlight.setStrokeStyle(3, strokeColor, strokeAlpha)
+        gemView.highlight.setAlpha(isSelected || isMatched ? 1 : 0)
+        gemView.sprite.setScale(GEM_BASE_SCALE * scale)
       }
     }
   }
@@ -281,7 +276,7 @@ export class GameScene extends Phaser.Scene {
 
     return new Promise((resolve) => {
       this.tweens.add({
-        targets: gemView.sprite,
+        targets: [gemView.highlight, gemView.sprite],
         x: cellCenter.x,
         y: targetY,
         duration: 160,
@@ -300,14 +295,14 @@ export class GameScene extends Phaser.Scene {
 
     return new Promise((resolve) => {
       this.tweens.add({
-        targets: gemView.sprite,
+        targets: [gemView.highlight, gemView.sprite],
         x: targetPosition.x,
         y: targetPosition.y + settleOffset,
         duration: fallDuration,
         ease: 'Quad.easeIn',
         onComplete: () => {
           this.tweens.add({
-            targets: gemView.sprite,
+            targets: [gemView.highlight, gemView.sprite],
             y: targetPosition.y,
             duration: bounceDuration,
             ease: 'Sine.easeOut',
@@ -335,6 +330,8 @@ export class GameScene extends Phaser.Scene {
     const cellPosition = this.getCellSpritePosition(this.dragPreviewTargetGem.position)
     this.dragPreviewTargetGem.sprite.x = cellPosition.x
     this.dragPreviewTargetGem.sprite.y = cellPosition.y
+    this.dragPreviewTargetGem.highlight.x = cellPosition.x
+    this.dragPreviewTargetGem.highlight.y = cellPosition.y
     this.dragPreviewTargetGem = null
   }
 
@@ -352,6 +349,7 @@ export class GameScene extends Phaser.Scene {
 
       this.draggedGem = gemView
       this.dragStartPointerPosition = { x: gemView.sprite.x, y: gemView.sprite.y }
+      gemView.highlight.setDepth(2)
       gemView.sprite.setDepth(2)
     })
 
@@ -368,6 +366,8 @@ export class GameScene extends Phaser.Scene {
         }
 
         const { x, y } = this.getDraggedGemPosition(pointer)
+        gemView.highlight.x = x
+        gemView.highlight.y = y
         gemView.sprite.x = x
         gemView.sprite.y = y
         this.updateDragPreviewTarget(gemView)
@@ -381,6 +381,7 @@ export class GameScene extends Phaser.Scene {
         return
       }
 
+      gemView.highlight.setDepth(1)
       gemView.sprite.setDepth(1)
 
       const targetGem = this.getDragSwapTarget(gemView)
@@ -477,28 +478,39 @@ export class GameScene extends Phaser.Scene {
 
     targetGem.sprite.x = targetCellPosition.x + previewOffsetX
     targetGem.sprite.y = targetCellPosition.y + previewOffsetY
+    targetGem.highlight.x = targetCellPosition.x + previewOffsetX
+    targetGem.highlight.y = targetCellPosition.y + previewOffsetY
   }
 
   private createGemView(position: GridPosition, gemType: GemType): GemView {
     const cellCenter = this.getCellCenter(position)
-    const gem = this.add.rectangle(
+    const highlight = this.add.rectangle(
       cellCenter.x,
       (position.row + position.column) % 2 === 0 ? cellCenter.y - 1 : cellCenter.y,
-      CELL_SIZE - 14,
-      CELL_SIZE - 14,
-      GEM_COLORS[gemType],
-      0.96,
+      CELL_SIZE - 2,
+      CELL_SIZE - 2,
+      0xffffff,
+      0,
     )
-    gem.setStrokeStyle(3, 0xffffff, 0.18)
-    gem.setRotation(Phaser.Math.DegToRad(45))
+    highlight.setStrokeStyle(3, 0xffffff, 0)
+    highlight.setDepth(1)
+
+    const gem = this.add.image(
+      cellCenter.x,
+      (position.row + position.column) % 2 === 0 ? cellCenter.y - 1 : cellCenter.y,
+      GEMS_SPRITE_SHEET_KEY,
+      GEM_SPRITE_FRAME_BY_TYPE[gemType],
+    )
+    gem.setScale(GEM_BASE_SCALE)
     gem.setInteractive({ useHandCursor: true })
     this.input.setDraggable(gem)
-    gem.setDepth(1)
+    gem.setDepth(1.1)
 
     const gemView: GemView = {
       position: { ...position },
       gemType,
       sprite: gem,
+      highlight,
     }
 
     gem.setData('gemView', gemView)
@@ -889,8 +901,11 @@ export class GameScene extends Phaser.Scene {
     })
 
     const matchedSprites = uniquePositions
-      .map((position) => this.gemViews[position.row][position.column]?.sprite)
-      .filter((sprite): sprite is Phaser.GameObjects.Rectangle => Boolean(sprite))
+      .flatMap((position) => {
+        const gemView = this.gemViews[position.row][position.column]
+
+        return gemView ? [gemView.highlight, gemView.sprite] : []
+      })
 
     if (matchedSprites.length > 0) {
       this.playMatchSound()
@@ -922,6 +937,7 @@ export class GameScene extends Phaser.Scene {
         continue
       }
 
+      gemView.highlight.destroy()
       gemView.sprite.destroy()
       this.gemViews[position.row][position.column] = null
     }
