@@ -27,7 +27,7 @@ type BackgroundMusicSound = Phaser.Sound.BaseSound & {
   setVolume(value: number): Phaser.Sound.BaseSound
 }
 
-const BOARD_SIZE_OPTIONS = [6, 8, 10] as const
+const BOARD_SIZE_OPTIONS = [6, 8, 10, 12, 14, 16] as const
 const SWAP_SOUND_KEY = 'swap-sound'
 const MATCH_SOUND_KEY = 'match-sound'
 const BACKGROUND_MUSIC_KEY = 'background-music'
