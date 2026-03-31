@@ -90,7 +90,7 @@ export class GameScene extends Phaser.Scene {
 
     this.drawBackground(width, height)
     this.drawBoardFrame(this.boardLeft, this.boardTop, boardWidth, boardHeight)
-    this.drawBoard(this.boardState, this.boardLeft + BOARD_PADDING, this.boardTop + BOARD_PADDING)
+    this.drawBoard(this.boardState)
     this.registerDragHandlers()
     this.setupAudio()
     this.createScoreText()
@@ -171,7 +171,7 @@ export class GameScene extends Phaser.Scene {
     board.setStrokeStyle(4, 0xf7b267, 0.8)
   }
 
-  private drawBoard(boardState: BoardState, gridLeft: number, gridTop: number): void {
+  private drawBoard(boardState: BoardState): void {
     this.gemViews = []
 
     for (let row = 0; row < boardState.length; row += 1) {
@@ -180,19 +180,6 @@ export class GameScene extends Phaser.Scene {
       for (let column = 0; column < boardState[row].length; column += 1) {
         const position: GridPosition = { row, column }
         const gemType = boardState[row][column]
-        const centerX = gridLeft + column * CELL_SIZE + CELL_SIZE / 2
-        const centerY = gridTop + row * CELL_SIZE + CELL_SIZE / 2
-
-        const cell = this.add.rectangle(
-          centerX,
-          centerY,
-          CELL_SIZE - 4,
-          CELL_SIZE - 4,
-          0x1a1230,
-          0.85,
-        )
-        cell.setStrokeStyle(1, 0xffffff, 0.08)
-        cell.setDepth(0)
 
         if (gemType === null) {
           viewRow.push(null)
