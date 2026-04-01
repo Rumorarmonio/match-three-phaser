@@ -82,9 +82,8 @@ h1 {
 }
 
 .game-root {
-  aspect-ratio: 16 / 9;
   width: 100%;
-  min-height: min(78vh, 920px);
+  height: min(78vh, 920px);
   overflow: hidden;
   border-radius: 20px;
   background: #120d24;
@@ -115,6 +114,6 @@ h1 {
   }
 
   .game-root {
-    min-height: min(72vh, 560px);
+    height: min(calc(100svh - 96px), 760px);
   }
 }
