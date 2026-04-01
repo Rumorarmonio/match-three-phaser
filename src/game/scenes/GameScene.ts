@@ -111,13 +111,6 @@ export class GameScene extends Phaser.Scene {
     this.createRestartButton()
     this.createMusicVolumeControl()
 
-    this.add
-      .text(width / 2, height - 28, 'Stage 13: music volume control and looped audio', {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '16px',
-        color: '#f7efe6',
-      })
-      .setOrigin(0.5)
   }
 
   private initializeBoardSettings(data: GameSceneData): void {
@@ -823,7 +816,7 @@ export class GameScene extends Phaser.Scene {
       this.changeGemTypeCount(-1)
     })
 
-    this.gemTypeCountText = this.add.text(85, 244, '', {
+    this.gemTypeCountText = this.add.text(85, 230, '', {
       fontFamily: 'Trebuchet MS, Verdana, sans-serif',
       fontSize: '18px',
       color: '#fff4d6',
