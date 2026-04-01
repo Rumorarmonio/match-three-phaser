@@ -1,4 +1,4 @@
-import { BOARD_COLUMNS, BOARD_ROWS, GEM_TYPES } from './constants'
+import { BOARD_COLUMNS, BOARD_ROWS, DEFAULT_GEM_TYPE_COUNT, GEM_TYPES } from './constants'
 import type {
   BoardState,
   BoardSettings,
@@ -13,6 +13,25 @@ const pickRandomGemType = (availableGemTypes: GemType[]): GemType => {
   const randomIndex = Math.floor(Math.random() * availableGemTypes.length)
   return availableGemTypes[randomIndex]
 }
+
+const shuffleGemTypes = (gemTypes: GemType[]): GemType[] => {
+  const shuffledGemTypes = [...gemTypes]
+
+  for (let index = shuffledGemTypes.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1))
+    const currentGemType = shuffledGemTypes[index]
+    shuffledGemTypes[index] = shuffledGemTypes[randomIndex]
+    shuffledGemTypes[randomIndex] = currentGemType
+  }
+
+  return shuffledGemTypes
+}
+
+const getDefaultBoardSettings = (): BoardSettings => ({
+  rows: BOARD_ROWS,
+  columns: BOARD_COLUMNS,
+  gemTypes: GEM_TYPES.slice(0, DEFAULT_GEM_TYPE_COUNT),
+})
 
 const createsMatchAt = (
   board: BoardState,
@@ -60,10 +79,39 @@ const createsMatchAt = (
   return horizontalCount >= 3 || verticalCount >= 3
 }
 
+const fillBoardPositions = (
+  board: BoardState,
+  positions: GridPosition[],
+  boardSettings: BoardSettings,
+  positionIndex = 0,
+): boolean => {
+  if (positionIndex >= positions.length) {
+    return true
+  }
+
+  const { row, column } = positions[positionIndex]
+  const nextGemTypes = shuffleGemTypes(boardSettings.gemTypes)
+
+  for (const gemType of nextGemTypes) {
+    board[row][column] = gemType
+
+    if (createsMatchAt(board, row, column, gemType, boardSettings)) {
+      continue
+    }
+
+    if (fillBoardPositions(board, positions, boardSettings, positionIndex + 1)) {
+      return true
+    }
+  }
+
+  board[row][column] = null
+  return false
+}
+
 export const createInitialBoard = (
-  boardSettings: BoardSettings = { rows: BOARD_ROWS, columns: BOARD_COLUMNS },
+  boardSettings: BoardSettings = getDefaultBoardSettings(),
 ): BoardState => {
-  const { rows, columns } = boardSettings
+  const { rows, columns, gemTypes } = boardSettings
   const board: BoardState = []
 
   for (let row = 0; row < rows; row += 1) {
@@ -71,13 +119,19 @@ export const createInitialBoard = (
     board.push(currentRow)
 
     for (let column = 0; column < columns; column += 1) {
-      const availableGemTypes = GEM_TYPES.filter(
-        (gemType) => !createsMatchAt(board, row, column, gemType, boardSettings),
-      )
-
-      currentRow.push(pickRandomGemType(availableGemTypes))
+      currentRow.push(pickRandomGemType(gemTypes))
     }
   }
+
+  const positions: GridPosition[] = []
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      positions.push({ row, column })
+    }
+  }
+
+  fillBoardPositions(board, positions, boardSettings)
 
   return board
 }
@@ -102,7 +156,7 @@ export const clearMatchedCells = (board: BoardState, matches: MatchGroup[]): voi
 
 export const applyGravity = (
   board: BoardState,
-  boardSettings: BoardSettings = { rows: BOARD_ROWS, columns: BOARD_COLUMNS },
+  boardSettings: BoardSettings = getDefaultBoardSettings(),
 ): FallMove[] => {
   const { columns, rows } = boardSettings
   const moves: FallMove[] = []
@@ -135,10 +189,11 @@ export const applyGravity = (
 
 export const refillBoard = (
   board: BoardState,
-  boardSettings: BoardSettings = { rows: BOARD_ROWS, columns: BOARD_COLUMNS },
+  boardSettings: BoardSettings = getDefaultBoardSettings(),
 ): RefillMove[] => {
-  const { columns, rows } = boardSettings
+  const { columns, rows, gemTypes } = boardSettings
   const moves: RefillMove[] = []
+  const refillPositions: GridPosition[] = []
 
   for (let column = 0; column < columns; column += 1) {
     let spawnRow = -1
@@ -148,19 +203,21 @@ export const refillBoard = (
         continue
       }
 
-      const availableGemTypes = GEM_TYPES.filter(
-        (gemType) => !createsMatchAt(board, row, column, gemType, boardSettings),
-      )
-      const gemType = pickRandomGemType(availableGemTypes)
-
-      board[row][column] = gemType
+      board[row][column] = pickRandomGemType(gemTypes)
+      refillPositions.push({ row, column })
       moves.push({
-        gemType,
+        gemType: board[row][column] as GemType,
         spawnRow,
         to: { row, column },
       })
       spawnRow -= 1
     }
+  }
+
+  fillBoardPositions(board, refillPositions, boardSettings)
+
+  for (const move of moves) {
+    move.gemType = board[move.to.row][move.to.column] as GemType
   }
 
   return moves

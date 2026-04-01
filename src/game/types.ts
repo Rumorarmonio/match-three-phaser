@@ -8,6 +8,7 @@ export type GridPosition = {
 export type BoardSettings = {
   rows: number
   columns: number
+  gemTypes: GemType[]
 }
 
 export type GemType = (typeof GEM_TYPES)[number]

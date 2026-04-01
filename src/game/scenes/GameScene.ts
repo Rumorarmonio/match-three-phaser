@@ -6,7 +6,15 @@ import {
   refillBoard,
   swapBoardCells,
 } from '../boardModel'
-import { BOARD_COLUMNS, BOARD_PADDING, BOARD_ROWS, CELL_SIZE } from '../constants'
+import {
+  BOARD_COLUMNS,
+  BOARD_PADDING,
+  BOARD_ROWS,
+  CELL_SIZE,
+  DEFAULT_GEM_TYPE_COUNT,
+  GEM_TYPES,
+  MIN_GEM_TYPE_COUNT,
+} from '../constants'
 import { findMatches } from '../matchFinder'
 import type { BoardState, BoardSettings, FallMove, GemType, GridPosition, MatchGroup, RefillMove } from '../types'
 
@@ -20,6 +28,7 @@ type GemView = {
 type GameSceneData = {
   boardColumns?: number
   boardRows?: number
+  gemTypeCount?: number
 }
 
 type BackgroundMusicSound = Phaser.Sound.BaseSound & {
@@ -43,6 +52,7 @@ const GEM_SPRITE_FRAME_BY_TYPE: Record<GemType, number> = {
   amber: 2,
   lime: 3,
   violet: 4,
+  rose: 5,
 }
 const GEM_BASE_SCALE = (CELL_SIZE - 6) / 128
 
@@ -59,9 +69,11 @@ export class GameScene extends Phaser.Scene {
   private boardTop = 0
   private boardColumns = BOARD_COLUMNS
   private boardRows = BOARD_ROWS
+  private gemTypeCount: number = DEFAULT_GEM_TYPE_COUNT
   private score = 0
   private scoreText!: Phaser.GameObjects.Text
   private boardSizeText!: Phaser.GameObjects.Text
+  private gemTypeCountText!: Phaser.GameObjects.Text
   private backgroundMusic: BackgroundMusicSound | null = null
   private backgroundMusicVolume = DEFAULT_BACKGROUND_MUSIC_VOLUME
   private isBackgroundMusicMuted = false
@@ -95,6 +107,7 @@ export class GameScene extends Phaser.Scene {
     this.setupAudio()
     this.createScoreText()
     this.createBoardSizeControls()
+    this.createGemTypeControls()
     this.createRestartButton()
     this.createMusicVolumeControl()
 
@@ -110,6 +123,11 @@ export class GameScene extends Phaser.Scene {
   private initializeBoardSettings(data: GameSceneData): void {
     this.boardColumns = data.boardColumns ?? BOARD_COLUMNS
     this.boardRows = data.boardRows ?? BOARD_ROWS
+    this.gemTypeCount = Phaser.Math.Clamp(
+      data.gemTypeCount ?? DEFAULT_GEM_TYPE_COUNT,
+      MIN_GEM_TYPE_COUNT,
+      GEM_TYPES.length,
+    )
   }
 
   private initializeGameState(): void {
@@ -129,6 +147,7 @@ export class GameScene extends Phaser.Scene {
     return {
       rows: this.boardRows,
       columns: this.boardColumns,
+      gemTypes: GEM_TYPES.slice(0, this.gemTypeCount),
     }
   }
 
@@ -603,8 +622,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createMusicVolumeControl(): void {
-    const labelY = 240
-    const trackY = 273
+    const labelY = 326
+    const trackY = 359
     const trackLeft = 28
 
     this.add.text(trackLeft, labelY, 'Music', {
@@ -652,7 +671,7 @@ export class GameScene extends Phaser.Scene {
     })
 
     this.musicMuteButton = this.add
-      .text(trackLeft, 294, '', {
+      .text(trackLeft, 380, '', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '16px',
         color: '#24173f',
@@ -791,6 +810,33 @@ export class GameScene extends Phaser.Scene {
     this.updateBoardSizeText()
   }
 
+  private createGemTypeControls(): void {
+    this.add.text(28, 198, 'Colors', {
+      fontFamily: 'Trebuchet MS, Verdana, sans-serif',
+      fontSize: '18px',
+      color: '#f7b267',
+      fontStyle: 'bold',
+    })
+
+    const decreaseGemTypesButton = this.createBoardSizeButton(28, 226, '-')
+    decreaseGemTypesButton.on('pointerdown', () => {
+      this.changeGemTypeCount(-1)
+    })
+
+    this.gemTypeCountText = this.add.text(85, 244, '', {
+      fontFamily: 'Trebuchet MS, Verdana, sans-serif',
+      fontSize: '18px',
+      color: '#fff4d6',
+    })
+
+    const increaseGemTypesButton = this.createBoardSizeButton(218, 226, '+')
+    increaseGemTypesButton.on('pointerdown', () => {
+      this.changeGemTypeCount(1)
+    })
+
+    this.updateGemTypeCountText()
+  }
+
   private createBoardSizeButton(
     x: number,
     y: number,
@@ -821,6 +867,10 @@ export class GameScene extends Phaser.Scene {
     this.boardSizeText.setText(`${this.boardColumns} cols x ${this.boardRows} rows`)
   }
 
+  private updateGemTypeCountText(): void {
+    this.gemTypeCountText.setText(`${this.gemTypeCount} active colors`)
+  }
+
   private changeBoardSize(axis: 'columns' | 'rows', direction: -1 | 1): void {
     if (this.isBoardBusy) {
       return
@@ -841,12 +891,35 @@ export class GameScene extends Phaser.Scene {
     this.scene.restart({
       boardColumns: nextBoardColumns,
       boardRows: nextBoardRows,
+      gemTypeCount: this.gemTypeCount,
+    })
+  }
+
+  private changeGemTypeCount(direction: -1 | 1): void {
+    if (this.isBoardBusy) {
+      return
+    }
+
+    const nextGemTypeCount = Phaser.Math.Clamp(
+      this.gemTypeCount + direction,
+      MIN_GEM_TYPE_COUNT,
+      GEM_TYPES.length,
+    )
+
+    if (nextGemTypeCount === this.gemTypeCount) {
+      return
+    }
+
+    this.scene.restart({
+      boardColumns: this.boardColumns,
+      boardRows: this.boardRows,
+      gemTypeCount: nextGemTypeCount,
     })
   }
 
   private createRestartButton(): void {
     const button = this.add
-      .text(28, 198, 'Restart', {
+      .text(28, 280, 'Restart', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '18px',
         color: '#24173f',
@@ -859,6 +932,7 @@ export class GameScene extends Phaser.Scene {
       this.scene.restart({
         boardColumns: this.boardColumns,
         boardRows: this.boardRows,
+        gemTypeCount: this.gemTypeCount,
       })
     })
 
