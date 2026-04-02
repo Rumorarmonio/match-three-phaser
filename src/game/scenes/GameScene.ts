@@ -1385,37 +1385,44 @@ export class GameScene extends Phaser.Scene {
       MATCH_BUBBLE_BASE_COUNT,
       MATCH_BUBBLE_MAX_COUNT,
     )
-    const baseBubbleCountPerGem = Math.floor(totalBubbleCount / match.length)
-    let remainingBubbleCount = totalBubbleCount % match.length
+    const cellCenters = match.map((position) => this.getCellCenter(position))
+    const uniqueRows = new Set(match.map((position) => position.row))
+    const uniqueColumns = new Set(match.map((position) => position.column))
+    const isHorizontalMatch = uniqueRows.size === 1
+    const isVerticalMatch = uniqueColumns.size === 1
 
-    for (const position of match) {
-      const cellCenter = this.getCellCenter(position)
-      const bubbleCount = baseBubbleCountPerGem + (remainingBubbleCount > 0 ? 1 : 0)
+    const xPositions = cellCenters.map((center) => center.x)
+    const yPositions = cellCenters.map((center) => center.y)
+    const minX = Math.min(...xPositions)
+    const maxX = Math.max(...xPositions)
+    const minY = Math.min(...yPositions)
+    const maxY = Math.max(...yPositions)
+    const horizontalJitter = this.cellSize * 0.18
+    const verticalJitter = this.cellSize * 0.18
 
-      if (remainingBubbleCount > 0) {
-        remainingBubbleCount -= 1
-      }
+    const emitter = this.add.particles(0, 0, BUBBLE_PARTICLE_TEXTURE_KEY, {
+      x: isVerticalMatch
+        ? { min: minX - horizontalJitter, max: maxX + horizontalJitter }
+        : { min: minX - this.cellSize * 0.35, max: maxX + this.cellSize * 0.35 },
+      y: isHorizontalMatch
+        ? { min: minY - verticalJitter, max: maxY + verticalJitter }
+        : { min: minY - this.cellSize * 0.35, max: maxY + this.cellSize * 0.35 },
+      speedX: { min: -90, max: 90 },
+      speedY: { min: -220, max: -80 },
+      scale: { start: 0.26, end: 0.04, random: true },
+      alpha: { start: 0.7, end: 0 },
+      lifespan: { min: 360, max: 620 },
+      quantity: totalBubbleCount,
+      gravityY: -10,
+      rotate: { min: -25, max: 25 },
+      frequency: -1,
+      blendMode: 'ADD',
+    })
 
-      const emitter = this.add.particles(0, 0, BUBBLE_PARTICLE_TEXTURE_KEY, {
-        x: { min: cellCenter.x - this.cellSize * 0.18, max: cellCenter.x + this.cellSize * 0.18 },
-        y: { min: cellCenter.y - this.cellSize * 0.18, max: cellCenter.y + this.cellSize * 0.18 },
-        speedX: { min: -90, max: 90 },
-        speedY: { min: -220, max: -80 },
-        scale: { start: 0.26, end: 0.04, random: true },
-        alpha: { start: 0.7, end: 0 },
-        lifespan: { min: 360, max: 620 },
-        quantity: bubbleCount,
-        gravityY: -10,
-        rotate: { min: -25, max: 25 },
-        frequency: -1,
-        blendMode: 'ADD',
-      })
-
-      emitter.explode(bubbleCount)
-      this.time.delayedCall(700, () => {
-        emitter.destroy()
-      })
-    }
+    emitter.explode(totalBubbleCount)
+    this.time.delayedCall(700, () => {
+      emitter.destroy()
+    })
   }
 
   private async removeMatchedGems(matches: MatchGroup[]): Promise<void> {
