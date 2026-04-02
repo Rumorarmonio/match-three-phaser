@@ -23,6 +23,7 @@ type GemView = {
   gemType: GemType
   sprite: Phaser.GameObjects.Image
   highlight: Phaser.GameObjects.Rectangle
+  positionTween: Phaser.Tweens.Tween | null
 }
 
 type GameSceneData = {
@@ -67,6 +68,8 @@ const MOBILE_MUSIC_LABEL_Y = 266
 const MOBILE_COLORS_LABEL_Y = 148
 const BOARD_FRAME_RADIUS = 20
 const GEM_SELECTION_ANIMATION_DURATION = 140
+const DRAG_RETURN_ANIMATION_DURATION = 120
+const DRAG_PREVIEW_ANIMATION_DURATION = 75
 const MATCH_BUBBLE_BASE_COUNT = 6
 const MATCH_BUBBLE_PER_GEM = 3
 const MATCH_BUBBLE_MAX_COUNT = 32
@@ -438,17 +441,59 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private snapGemToCell(gemView: GemView, position: GridPosition): void {
+    gemView.positionTween?.stop()
+    gemView.positionTween = null
+
+    const cellPosition = this.getCellSpritePosition(position)
+    gemView.highlight.x = cellPosition.x
+    gemView.highlight.y = cellPosition.y
+    gemView.sprite.x = cellPosition.x
+    gemView.sprite.y = cellPosition.y
+  }
+
+  private animateGemToPoint(gemView: GemView, x: number, y: number, duration: number): Promise<void> {
+    return new Promise((resolve) => {
+      gemView.positionTween?.stop()
+
+      gemView.positionTween = this.tweens.add({
+        targets: [gemView.highlight, gemView.sprite],
+        x,
+        y,
+        duration,
+        ease: 'Sine.easeOut',
+        onComplete: () => {
+          gemView.positionTween = null
+          resolve()
+        },
+      })
+    })
+  }
+
+  private async animateGemBackToCell(gemView: GemView): Promise<void> {
+    const cellPosition = this.getCellSpritePosition(gemView.position)
+    await this.animateGemToPoint(gemView, cellPosition.x, cellPosition.y, DRAG_RETURN_ANIMATION_DURATION)
+  }
+
   private resetDragPreviewTarget(): void {
     if (!this.dragPreviewTargetGem) {
       return
     }
 
-    const cellPosition = this.getCellSpritePosition(this.dragPreviewTargetGem.position)
-    this.dragPreviewTargetGem.sprite.x = cellPosition.x
-    this.dragPreviewTargetGem.sprite.y = cellPosition.y
-    this.dragPreviewTargetGem.highlight.x = cellPosition.x
-    this.dragPreviewTargetGem.highlight.y = cellPosition.y
+    this.snapGemToCell(this.dragPreviewTargetGem, this.dragPreviewTargetGem.position)
     this.dragPreviewTargetGem = null
+  }
+
+  private async cancelDrag(gemView: GemView): Promise<void> {
+    this.isBoardBusy = true
+
+    try {
+      this.resetDragPreviewTarget()
+      await this.animateGemBackToCell(gemView)
+      this.updateSelectionState()
+    } finally {
+      this.isBoardBusy = false
+    }
   }
 
   private registerDragHandlers(): void {
@@ -505,9 +550,7 @@ export class GameScene extends Phaser.Scene {
       this.dragStartPointerPosition = null
 
       if (!targetGem) {
-        this.resetDragPreviewTarget()
-        void this.animateGemMove(gemView, gemView.position)
-        this.updateSelectionState()
+        void this.cancelDrag(gemView)
         return
       }
 
@@ -592,10 +635,12 @@ export class GameScene extends Phaser.Scene {
     const previewOffsetX = this.dragStartPointerPosition.x - gemView.sprite.x
     const previewOffsetY = this.dragStartPointerPosition.y - gemView.sprite.y
 
-    targetGem.sprite.x = targetCellPosition.x + previewOffsetX
-    targetGem.sprite.y = targetCellPosition.y + previewOffsetY
-    targetGem.highlight.x = targetCellPosition.x + previewOffsetX
-    targetGem.highlight.y = targetCellPosition.y + previewOffsetY
+    void this.animateGemToPoint(
+      targetGem,
+      targetCellPosition.x + previewOffsetX,
+      targetCellPosition.y + previewOffsetY,
+      DRAG_PREVIEW_ANIMATION_DURATION,
+    )
   }
 
   private createGemView(position: GridPosition, gemType: GemType): GemView {
@@ -627,6 +672,7 @@ export class GameScene extends Phaser.Scene {
       gemType,
       sprite: gem,
       highlight,
+      positionTween: null,
     }
 
     gem.setData('gemView', gemView)
