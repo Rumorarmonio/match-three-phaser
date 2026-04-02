@@ -70,6 +70,14 @@ const GEM_SELECTION_ANIMATION_DURATION = 140
 const MATCH_BUBBLE_BASE_COUNT = 6
 const MATCH_BUBBLE_PER_GEM = 3
 const MATCH_BUBBLE_MAX_COUNT = 32
+const BUBBLE_TINT_BY_GEM_TYPE: Record<GemType, number> = {
+  ruby: 0xff6b7c,
+  cyan: 0x71e5ff,
+  amber: 0xffc65c,
+  lime: 0xa6f26a,
+  violet: 0xc89bff,
+  rose: 0xff8fc3,
+}
 const GEM_SPRITE_FRAME_BY_TYPE: Record<GemType, number> = {
   ruby: 0,
   cyan: 1,
@@ -1399,6 +1407,7 @@ export class GameScene extends Phaser.Scene {
     const maxY = Math.max(...yPositions)
     const horizontalJitter = this.cellSize * 0.18
     const verticalJitter = this.cellSize * 0.18
+    const bubbleTints = this.getMatchBubbleTints(match)
 
     const emitter = this.add.particles(0, 0, BUBBLE_PARTICLE_TEXTURE_KEY, {
       x: isVerticalMatch
@@ -1415,6 +1424,7 @@ export class GameScene extends Phaser.Scene {
       quantity: totalBubbleCount,
       gravityY: -10,
       rotate: { min: -25, max: 25 },
+      tint: bubbleTints.length === 1 ? bubbleTints[0] : bubbleTints,
       frequency: -1,
       blendMode: 'ADD',
     })
@@ -1423,6 +1433,22 @@ export class GameScene extends Phaser.Scene {
     this.time.delayedCall(700, () => {
       emitter.destroy()
     })
+  }
+
+  private getMatchBubbleTints(match: MatchGroup): number[] {
+    const uniqueTints = new Set<number>()
+
+    for (const position of match) {
+      const gemType = this.boardState[position.row][position.column]
+
+      if (!gemType) {
+        continue
+      }
+
+      uniqueTints.add(BUBBLE_TINT_BY_GEM_TYPE[gemType])
+    }
+
+    return uniqueTints.size > 0 ? [...uniqueTints] : [0xffffff]
   }
 
   private async removeMatchedGems(matches: MatchGroup[]): Promise<void> {
