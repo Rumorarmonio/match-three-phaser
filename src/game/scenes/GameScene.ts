@@ -65,6 +65,7 @@ const DESKTOP_MUSIC_LABEL_Y = 418
 const MOBILE_MUSIC_LABEL_Y = 266
 const MOBILE_COLORS_LABEL_Y = 148
 const BOARD_FRAME_RADIUS = 20
+const GEM_SELECTION_ANIMATION_DURATION = 140
 const GEM_SPRITE_FRAME_BY_TYPE: Record<GemType, number> = {
   ruby: 0,
   cyan: 1,
@@ -331,13 +332,27 @@ export class GameScene extends Phaser.Scene {
 
         const isSelected = this.selectedGem === gemView
         const isMatched = this.matchedGemKeys.has(this.getPositionKey(gemView.position))
-        const strokeColor = isSelected ? 0xfff4d6 : isMatched ? 0x7ae582 : 0xffffff
-        const strokeAlpha = isSelected ? 0.95 : isMatched ? 0.92 : 0
+        const strokeColor = 0xfff4d6
+        const strokeAlpha = isSelected ? 0.95 : 0
         const scale = isSelected ? 1.08 : isMatched ? 1.04 : 1
 
         gemView.highlight.setStrokeStyle(3, strokeColor, strokeAlpha)
-        gemView.highlight.setAlpha(isSelected || isMatched ? 1 : 0)
-        gemView.sprite.setScale(this.getGemBaseScale() * scale)
+        this.tweens.killTweensOf(gemView.highlight)
+        this.tweens.killTweensOf(gemView.sprite)
+
+        this.tweens.add({
+          targets: gemView.highlight,
+          alpha: isSelected ? 1 : 0,
+          duration: GEM_SELECTION_ANIMATION_DURATION,
+          ease: 'Sine.easeOut',
+        })
+
+        this.tweens.add({
+          targets: gemView.sprite,
+          scale: this.getGemBaseScale() * scale,
+          duration: GEM_SELECTION_ANIMATION_DURATION,
+          ease: 'Sine.easeOut',
+        })
       }
     }
   }
