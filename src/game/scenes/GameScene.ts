@@ -62,6 +62,7 @@ const MOBILE_RESTART_BUTTON_Y = 212
 const DESKTOP_MUSIC_LABEL_Y = 418
 const MOBILE_MUSIC_LABEL_Y = 266
 const MOBILE_COLORS_LABEL_Y = 148
+const BOARD_FRAME_RADIUS = 20
 const GEM_SPRITE_FRAME_BY_TYPE: Record<GemType, number> = {
   ruby: 0,
   cyan: 1,
@@ -252,25 +253,17 @@ export class GameScene extends Phaser.Scene {
     boardWidth: number,
     boardHeight: number,
   ): void {
-    const shadow = this.add.rectangle(
-      boardLeft + boardWidth / 2,
-      boardTop + boardHeight / 2,
-      boardWidth + 22,
-      boardHeight + 22,
-      0x000000,
-      0.22,
-    )
-    shadow.setStrokeStyle(2, 0xffffff, 0.06)
+    const shadow = this.add.graphics()
+    shadow.fillStyle(0x000000, 0.22)
+    shadow.lineStyle(2, 0xffffff, 0.06)
+    shadow.fillRoundedRect(boardLeft - 11, boardTop - 11, boardWidth + 22, boardHeight + 22, BOARD_FRAME_RADIUS)
+    shadow.strokeRoundedRect(boardLeft - 11, boardTop - 11, boardWidth + 22, boardHeight + 22, BOARD_FRAME_RADIUS)
 
-    const board = this.add.rectangle(
-      boardLeft + boardWidth / 2,
-      boardTop + boardHeight / 2,
-      boardWidth,
-      boardHeight,
-      0x24173f,
-      0.94,
-    )
-    board.setStrokeStyle(4, 0xf7b267, 0.8)
+    const board = this.add.graphics()
+    board.fillStyle(0x24173f, 0.94)
+    board.lineStyle(4, 0xf7b267, 0.8)
+    board.fillRoundedRect(boardLeft, boardTop, boardWidth, boardHeight, BOARD_FRAME_RADIUS)
+    board.strokeRoundedRect(boardLeft, boardTop, boardWidth, boardHeight, BOARD_FRAME_RADIUS)
   }
 
   private drawBoard(boardState: BoardState): void {
