@@ -51,10 +51,17 @@ const DESKTOP_LAYOUT_BREAKPOINT = 900
 const DESKTOP_CONTROLS_WIDTH = 320
 const DESKTOP_CONTROLS_HEIGHT = 560
 const DESKTOP_CONTROLS_INNER_OFFSET = 28
-const MOBILE_CONTROLS_HEIGHT = 280
+const MOBILE_CONTROLS_HEIGHT = 360
 const SCENE_PADDING = 16
 const BOARD_TO_CONTROLS_GAP = 18
 const DESKTOP_TITLE_HEIGHT = 104
+const BOARD_SIZE_VALUE_OFFSET = 32
+const GEM_TYPE_VALUE_OFFSET = 14
+const DESKTOP_RESTART_BUTTON_Y = 356
+const MOBILE_RESTART_BUTTON_Y = 212
+const DESKTOP_MUSIC_LABEL_Y = 418
+const MOBILE_MUSIC_LABEL_Y = 266
+const MOBILE_COLORS_LABEL_Y = 148
 const GEM_SPRITE_FRAME_BY_TYPE: Record<GemType, number> = {
   ruby: 0,
   cyan: 1,
@@ -707,7 +714,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createDesktopMusicVolumeControl(): void {
-    const labelY = this.controlsTop + 392
+    const labelY = this.controlsTop + DESKTOP_MUSIC_LABEL_Y
     const trackY = labelY + 33
     const trackLeft = this.getDesktopControlsInnerLeft()
     const trackWidth = this.musicVolumeTrackWidth
@@ -760,7 +767,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createMobileMusicVolumeControl(): void {
-    const labelY = this.controlsTop + 200
+    const labelY = this.controlsTop + MOBILE_MUSIC_LABEL_Y
     const trackY = labelY + 34
     const trackLeft = this.controlsLeft
     const trackWidth = this.musicVolumeTrackWidth
@@ -984,7 +991,7 @@ export class GameScene extends Phaser.Scene {
     )
 
     this.boardSizeText = this.add
-      .text(centerX, firstRowY + 18, '', {
+      .text(centerX, firstRowY + BOARD_SIZE_VALUE_OFFSET, '', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '18px',
         color: '#fff4d6',
@@ -1041,7 +1048,7 @@ export class GameScene extends Phaser.Scene {
     )
 
     this.boardSizeText = this.add
-      .text(centerX, firstRowY + 18, '', {
+      .text(centerX, firstRowY + BOARD_SIZE_VALUE_OFFSET, '', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '18px',
         color: '#fff4d6',
@@ -1062,7 +1069,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createDesktopGemTypeControls(): void {
-    const labelY = this.controlsTop + 278
+    const labelY = this.controlsTop + 290
     const rowY = labelY + 28
     const controlsLeft = this.getDesktopControlsInnerLeft()
     const controlsRight = this.getDesktopControlsInnerRight()
@@ -1091,7 +1098,7 @@ export class GameScene extends Phaser.Scene {
     )
 
     this.gemTypeCountText = this.add
-      .text(centerX, rowY + 18, '', {
+      .text(centerX, rowY + GEM_TYPE_VALUE_OFFSET, '', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '18px',
         color: '#fff4d6',
@@ -1103,7 +1110,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createMobileGemTypeControls(): void {
-    const labelY = this.controlsTop + 124
+    const labelY = this.controlsTop + MOBILE_COLORS_LABEL_Y
     const rowY = labelY + 28
     const centerX = this.controlsLeft + this.controlsWidth / 2
 
@@ -1131,7 +1138,7 @@ export class GameScene extends Phaser.Scene {
     )
 
     this.gemTypeCountText = this.add
-      .text(centerX, rowY + 18, '', {
+      .text(centerX, rowY + GEM_TYPE_VALUE_OFFSET, '', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '18px',
         color: '#fff4d6',
@@ -1231,7 +1238,7 @@ export class GameScene extends Phaser.Scene {
 
   private createDesktopRestartButton(): void {
     const button = this.add
-      .text(this.getDesktopControlsInnerLeft(), this.controlsTop + 358, 'Restart', {
+      .text(this.getDesktopControlsInnerLeft(), this.controlsTop + DESKTOP_RESTART_BUTTON_Y, 'Restart game', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '18px',
         color: '#24173f',
@@ -1245,7 +1252,7 @@ export class GameScene extends Phaser.Scene {
 
   private createMobileRestartButton(): void {
     const button = this.add
-      .text(0, this.controlsTop + 166, 'Restart', {
+      .text(0, this.controlsTop + MOBILE_RESTART_BUTTON_Y, 'Restart game', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '18px',
         color: '#24173f',
