@@ -29,6 +29,8 @@ type GameSceneData = {
   boardColumns?: number
   boardRows?: number
   gemTypeCount?: number
+  boardState?: BoardState
+  score?: number
 }
 
 type BackgroundMusicSound = Phaser.Sound.BaseSound & {
@@ -108,6 +110,7 @@ export class GameScene extends Phaser.Scene {
   private musicMuteButton!: Phaser.GameObjects.Text
   private isMusicVolumeDragging = false
   private matchSoundCascadeStep = 0
+  private pendingResizeRestart: Phaser.Time.TimerEvent | null = null
 
   constructor() {
     super('game')
@@ -115,7 +118,7 @@ export class GameScene extends Phaser.Scene {
 
   create(data: GameSceneData = {}): void {
     this.initializeBoardSettings(data)
-    this.initializeGameState()
+    this.initializeGameState(data)
 
     const { width, height } = this.scale
     this.calculateLayout(width, height)
@@ -131,7 +134,7 @@ export class GameScene extends Phaser.Scene {
     this.createGemTypeControls()
     this.createRestartButton()
     this.createMusicVolumeControl()
-
+    this.registerResizeHandler()
   }
 
   private calculateLayout(width: number, height: number): void {
@@ -214,8 +217,8 @@ export class GameScene extends Phaser.Scene {
     )
   }
 
-  private initializeGameState(): void {
-    this.boardState = createInitialBoard(this.getBoardSettings())
+  private initializeGameState(data: GameSceneData): void {
+    this.boardState = data.boardState ? this.cloneBoardState(data.boardState) : createInitialBoard(this.getBoardSettings())
     this.gemViews = []
     this.selectedGem = null
     this.matchedGemKeys.clear()
@@ -223,8 +226,12 @@ export class GameScene extends Phaser.Scene {
     this.draggedGem = null
     this.dragStartPointerPosition = null
     this.dragPreviewTargetGem = null
-    this.score = 0
+    this.score = data.score ?? 0
     this.matchSoundCascadeStep = 0
+  }
+
+  private cloneBoardState(boardState: BoardState): BoardState {
+    return boardState.map((row) => [...row])
   }
 
   private getBoardSettings(): BoardSettings {
@@ -647,12 +654,42 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleSceneShutdown(): void {
+    this.scale.off(Phaser.Scale.Events.RESIZE, this.handleSceneResize, this)
     this.sound.off('unlocked', this.handleAudioUnlocked, this)
     this.input.off('pointermove', this.handleMusicVolumePointerMove, this)
     this.input.off('pointerup', this.stopMusicVolumeDrag, this)
     this.input.off('gameout', this.stopMusicVolumeDrag, this)
+    this.pendingResizeRestart?.remove(false)
+    this.pendingResizeRestart = null
     this.isMusicVolumeDragging = false
     this.backgroundMusic = null
+  }
+
+  private registerResizeHandler(): void {
+    this.scale.off(Phaser.Scale.Events.RESIZE, this.handleSceneResize, this)
+    this.scale.on(Phaser.Scale.Events.RESIZE, this.handleSceneResize, this)
+  }
+
+  private handleSceneResize(gameSize: Phaser.Structs.Size): void {
+    this.pendingResizeRestart?.remove(false)
+
+    // Debounce resize bursts so the scene restarts only after the viewport settles.
+    this.pendingResizeRestart = this.time.delayedCall(120, () => {
+      const nextWidth = Math.round(gameSize.width)
+      const nextHeight = Math.round(gameSize.height)
+
+      if (nextWidth <= 0 || nextHeight <= 0) {
+        return
+      }
+
+      this.scene.restart({
+        boardColumns: this.boardColumns,
+        boardRows: this.boardRows,
+        gemTypeCount: this.gemTypeCount,
+        boardState: this.cloneBoardState(this.boardState),
+        score: this.score,
+      })
+    })
   }
 
   private playSwapSound(): void {
