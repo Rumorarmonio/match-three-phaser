@@ -47,12 +47,13 @@ const BACKGROUND_MUSIC_VOLUME_REGISTRY_KEY = 'backgroundMusicVolume'
 const BACKGROUND_MUSIC_MUTED_REGISTRY_KEY = 'backgroundMusicMuted'
 const MATCH_SOUND_CASCADE_DETUNE_STEP = 120
 const DESKTOP_LAYOUT_BREAKPOINT = 900
-const DESKTOP_CONTROLS_WIDTH = 250
-const DESKTOP_CONTROLS_HEIGHT = 420
-const DESKTOP_CONTROLS_INNER_OFFSET = 34
+const DESKTOP_CONTROLS_WIDTH = 320
+const DESKTOP_CONTROLS_HEIGHT = 560
+const DESKTOP_CONTROLS_INNER_OFFSET = 28
 const MOBILE_CONTROLS_HEIGHT = 280
 const SCENE_PADDING = 16
 const BOARD_TO_CONTROLS_GAP = 18
+const DESKTOP_TITLE_HEIGHT = 104
 const GEM_SPRITE_FRAME_BY_TYPE: Record<GemType, number> = {
   ruby: 0,
   cyan: 1,
@@ -115,6 +116,7 @@ export class GameScene extends Phaser.Scene {
     this.drawBoard(this.boardState)
     this.registerDragHandlers()
     this.setupAudio()
+    this.createDesktopTitle()
     this.createScoreText()
     this.createBoardSizeControls()
     this.createGemTypeControls()
@@ -143,7 +145,7 @@ export class GameScene extends Phaser.Scene {
     const horizontalCellSize = (boardAreaWidth - BOARD_PADDING * 2) / this.boardColumns
     const verticalCellSize = (boardAreaHeight - BOARD_PADDING * 2) / this.boardRows
 
-    this.cellSize = Math.max(16, Math.min(CELL_SIZE, horizontalCellSize, verticalCellSize))
+    this.cellSize = Math.max(16, Math.min(horizontalCellSize, verticalCellSize))
     this.boardWidth = this.boardColumns * this.cellSize + BOARD_PADDING * 2
     this.boardHeight = this.boardRows * this.cellSize + BOARD_PADDING * 2
     this.boardLeft =
@@ -153,7 +155,7 @@ export class GameScene extends Phaser.Scene {
       Math.max(0, (boardAreaWidth - this.boardWidth) / 2)
     this.boardTop = Math.max(SCENE_PADDING, (height - this.boardHeight) / 2)
     this.controlsTop = Math.max(SCENE_PADDING, (height - DESKTOP_CONTROLS_HEIGHT) / 2)
-    this.musicVolumeTrackWidth = Math.max(120, this.controlsWidth)
+    this.musicVolumeTrackWidth = Math.max(120, this.controlsWidth - DESKTOP_CONTROLS_INNER_OFFSET * 2)
   }
 
   private calculateMobileLayout(width: number, height: number): void {
@@ -179,6 +181,18 @@ export class GameScene extends Phaser.Scene {
 
   private getGemBaseScale(): number {
     return Math.max(0.12, (this.cellSize - 6) / 128)
+  }
+
+  private getDesktopControlsInnerLeft(): number {
+    return this.controlsLeft + DESKTOP_CONTROLS_INNER_OFFSET
+  }
+
+  private getDesktopControlsInnerWidth(): number {
+    return this.controlsWidth - DESKTOP_CONTROLS_INNER_OFFSET * 2
+  }
+
+  private getDesktopControlsInnerRight(): number {
+    return this.getDesktopControlsInnerLeft() + this.getDesktopControlsInnerWidth()
   }
 
   private initializeBoardSettings(data: GameSceneData): void {
@@ -692,9 +706,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createDesktopMusicVolumeControl(): void {
-    const labelY = this.controlsTop + 298
+    const labelY = this.controlsTop + 392
     const trackY = labelY + 33
-    const trackLeft = this.controlsLeft + DESKTOP_CONTROLS_INNER_OFFSET
+    const trackLeft = this.getDesktopControlsInnerLeft()
     const trackWidth = this.musicVolumeTrackWidth
 
     this.add.text(trackLeft, labelY, 'Music', {
@@ -897,10 +911,12 @@ export class GameScene extends Phaser.Scene {
 
   private createScoreText(): void {
     const scoreX = this.isDesktopLayout
-      ? this.controlsLeft + DESKTOP_CONTROLS_INNER_OFFSET
+      ? this.getDesktopControlsInnerLeft()
       : this.controlsLeft
 
-    this.scoreText = this.add.text(scoreX, this.controlsTop, '', {
+    const scoreY = this.isDesktopLayout ? this.controlsTop + DESKTOP_TITLE_HEIGHT : this.controlsTop
+
+    this.scoreText = this.add.text(scoreX, scoreY, '', {
       fontFamily: 'Trebuchet MS, Verdana, sans-serif',
       fontSize: '24px',
       color: '#fff4d6',
@@ -920,12 +936,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createDesktopBoardSizeControls(): void {
-    const labelY = this.controlsTop + 68
+    const labelY = this.controlsTop + 176
     const firstRowY = labelY + 28
     const secondRowY = firstRowY + 36
-    const controlsLeft = this.controlsLeft + DESKTOP_CONTROLS_INNER_OFFSET
-    const controlsRight = controlsLeft + this.controlsWidth
-    const centerX = controlsLeft + (controlsRight - controlsLeft) / 2
+    const controlsLeft = this.getDesktopControlsInnerLeft()
+    const controlsRight = this.getDesktopControlsInnerRight()
+    const centerX = controlsLeft + this.getDesktopControlsInnerWidth() / 2
 
     this.add.text(controlsLeft, labelY, 'Board', {
       fontFamily: 'Trebuchet MS, Verdana, sans-serif',
@@ -1043,11 +1059,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createDesktopGemTypeControls(): void {
-    const labelY = this.controlsTop + 170
+    const labelY = this.controlsTop + 278
     const rowY = labelY + 28
-    const controlsLeft = this.controlsLeft + DESKTOP_CONTROLS_INNER_OFFSET
-    const controlsRight = controlsLeft + this.controlsWidth
-    const centerX = controlsLeft + (controlsRight - controlsLeft) / 2
+    const controlsLeft = this.getDesktopControlsInnerLeft()
+    const controlsRight = this.getDesktopControlsInnerRight()
+    const centerX = controlsLeft + this.getDesktopControlsInnerWidth() / 2
 
     this.add.text(controlsLeft, labelY, 'Colors', {
       fontFamily: 'Trebuchet MS, Verdana, sans-serif',
@@ -1214,7 +1230,7 @@ export class GameScene extends Phaser.Scene {
 
   private createDesktopRestartButton(): void {
     const button = this.add
-      .text(this.controlsLeft + DESKTOP_CONTROLS_INNER_OFFSET, this.controlsTop + 250, 'Restart', {
+      .text(this.getDesktopControlsInnerLeft(), this.controlsTop + 358, 'Restart', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '18px',
         color: '#24173f',
@@ -1263,6 +1279,32 @@ export class GameScene extends Phaser.Scene {
 
   private updateScoreText(): void {
     this.scoreText.setText(`Score: ${this.score}`)
+  }
+
+  private createDesktopTitle(): void {
+    if (!this.isDesktopLayout) {
+      return
+    }
+
+    const titleLeft = this.getDesktopControlsInnerLeft()
+    const titleWidth = this.getDesktopControlsInnerWidth()
+
+    this.add.text(titleLeft, this.controlsTop, 'Phaser 3 + Vite + TypeScript', {
+      fontFamily: 'Trebuchet MS, Verdana, sans-serif',
+      fontSize: '13px',
+      color: '#f7b267',
+      letterSpacing: 2,
+      fontStyle: 'bold',
+    })
+
+    this.add.text(titleLeft, this.controlsTop + 24, 'Match-Three', {
+      fontFamily: 'Trebuchet MS, Verdana, sans-serif',
+      fontSize: '34px',
+      color: '#fff4d6',
+      fontStyle: 'bold',
+      wordWrap: { width: titleWidth },
+      lineSpacing: -4,
+    })
   }
 
   private getPositionKey(position: GridPosition): string {

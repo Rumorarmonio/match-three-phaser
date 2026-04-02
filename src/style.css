@@ -41,14 +41,16 @@ body::before {
   margin: 0 auto;
   min-height: 100vh;
   display: flex;
-  flex-direction: column;
-  gap: 18px;
-  padding: 16px 0 20px;
+  align-items: stretch;
+  padding: 16px 0;
 }
 
-.app-header,
 .game-panel {
   position: relative;
+  width: 100%;
+  min-height: calc(100vh - 32px);
+  display: flex;
+  padding: 16px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 28px;
   background: rgba(14, 10, 28, 0.72);
@@ -58,7 +60,7 @@ body::before {
 }
 
 .app-header {
-  padding: 20px 28px 18px;
+  display: none;
 }
 
 .eyebrow {
@@ -76,14 +78,10 @@ h1 {
   letter-spacing: -0.04em;
 }
 
-.game-panel {
-  min-height: 0;
-  padding: 16px;
-}
-
 .game-root {
   width: 100%;
-  height: min(78vh, 920px);
+  min-height: 0;
+  flex: 1;
   overflow: hidden;
   border-radius: 20px;
   background: #120d24;
@@ -96,24 +94,26 @@ h1 {
 @media (max-width: 900px) {
   .app-shell {
     width: min(100vw - 16px, 960px);
-    gap: 14px;
     padding: 12px 0 16px;
   }
 
-  .app-header,
   .game-panel {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
     border-radius: 22px;
+    min-height: 0;
+    gap: 14px;
+    padding: 16px 10px 10px;
   }
 
   .app-header {
-    padding: 16px 18px 14px;
-  }
-
-  .game-panel {
-    padding: 10px;
+    display: block;
+    width: 100%;
+    padding: 0 8px;
   }
 
   .game-root {
+    flex: initial;
     height: min(calc(100svh - 96px), 760px);
   }
 }
