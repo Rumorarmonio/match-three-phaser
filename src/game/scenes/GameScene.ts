@@ -36,7 +36,8 @@ type BackgroundMusicSound = Phaser.Sound.BaseSound & {
   setVolume(value: number): Phaser.Sound.BaseSound
 }
 
-const BOARD_SIZE_OPTIONS = [6, 8, 10, 12, 14, 16] as const
+const MIN_BOARD_SIZE = 6
+const MAX_BOARD_SIZE = 16
 const SWAP_SOUND_KEY = 'swap-sound'
 const MATCH_SOUND_KEY = 'match-sound'
 const BACKGROUND_MUSIC_KEY = 'background-music'
@@ -1179,9 +1180,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const currentValue = axis === 'columns' ? this.boardColumns : this.boardRows
-    const optionIndex = (BOARD_SIZE_OPTIONS as readonly number[]).indexOf(currentValue)
-    const nextIndex = Phaser.Math.Clamp(optionIndex + direction, 0, BOARD_SIZE_OPTIONS.length - 1)
-    const nextValue = BOARD_SIZE_OPTIONS[nextIndex]
+    const nextValue = Phaser.Math.Clamp(currentValue + direction, MIN_BOARD_SIZE, MAX_BOARD_SIZE)
 
     if (nextValue === currentValue) {
       return
