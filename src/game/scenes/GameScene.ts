@@ -42,7 +42,7 @@ const SWAP_SOUND_KEY = 'swap-sound'
 const MATCH_SOUND_KEY = 'match-sound'
 const BACKGROUND_MUSIC_KEY = 'background-music'
 const GEMS_SPRITE_SHEET_KEY = 'gems-sprite-sheet'
-const DEFAULT_BACKGROUND_MUSIC_VOLUME = 0.14
+const DEFAULT_BACKGROUND_MUSIC_VOLUME = 0.06
 const MUSIC_VOLUME_TRACK_WIDTH = 190
 const BACKGROUND_MUSIC_VOLUME_REGISTRY_KEY = 'backgroundMusicVolume'
 const BACKGROUND_MUSIC_MUTED_REGISTRY_KEY = 'backgroundMusicMuted'
@@ -873,7 +873,9 @@ export class GameScene extends Phaser.Scene {
 
   private setBackgroundMusicVolume(volume: number): void {
     this.backgroundMusicVolume = volume
+    this.isBackgroundMusicMuted = false
     this.registry.set(BACKGROUND_MUSIC_VOLUME_REGISTRY_KEY, volume)
+    this.registry.set(BACKGROUND_MUSIC_MUTED_REGISTRY_KEY, false)
     this.applyBackgroundMusicState()
     this.updateMusicVolumeControl()
   }
