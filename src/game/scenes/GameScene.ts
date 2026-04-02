@@ -44,6 +44,7 @@ const SWAP_SOUND_KEY = 'swap-sound'
 const MATCH_SOUND_KEY = 'match-sound'
 const BACKGROUND_MUSIC_KEY = 'background-music'
 const GEMS_SPRITE_SHEET_KEY = 'gems-sprite-sheet'
+const BUBBLE_PARTICLE_TEXTURE_KEY = 'bubble-particle'
 const DEFAULT_BACKGROUND_MUSIC_VOLUME = 0.06
 const MUSIC_VOLUME_TRACK_WIDTH = 190
 const BACKGROUND_MUSIC_VOLUME_REGISTRY_KEY = 'backgroundMusicVolume'
@@ -66,6 +67,9 @@ const MOBILE_MUSIC_LABEL_Y = 266
 const MOBILE_COLORS_LABEL_Y = 148
 const BOARD_FRAME_RADIUS = 20
 const GEM_SELECTION_ANIMATION_DURATION = 140
+const MATCH_BUBBLE_BASE_COUNT = 6
+const MATCH_BUBBLE_PER_GEM = 3
+const MATCH_BUBBLE_MAX_COUNT = 32
 const GEM_SPRITE_FRAME_BY_TYPE: Record<GemType, number> = {
   ruby: 0,
   cyan: 1,
@@ -1371,6 +1375,49 @@ export class GameScene extends Phaser.Scene {
     this.updateSelectionState()
   }
 
+  private createMatchBubbleBurst(match: MatchGroup): void {
+    if (match.length === 0) {
+      return
+    }
+
+    const totalBubbleCount = Phaser.Math.Clamp(
+      MATCH_BUBBLE_BASE_COUNT + match.length * MATCH_BUBBLE_PER_GEM,
+      MATCH_BUBBLE_BASE_COUNT,
+      MATCH_BUBBLE_MAX_COUNT,
+    )
+    const baseBubbleCountPerGem = Math.floor(totalBubbleCount / match.length)
+    let remainingBubbleCount = totalBubbleCount % match.length
+
+    for (const position of match) {
+      const cellCenter = this.getCellCenter(position)
+      const bubbleCount = baseBubbleCountPerGem + (remainingBubbleCount > 0 ? 1 : 0)
+
+      if (remainingBubbleCount > 0) {
+        remainingBubbleCount -= 1
+      }
+
+      const emitter = this.add.particles(0, 0, BUBBLE_PARTICLE_TEXTURE_KEY, {
+        x: { min: cellCenter.x - this.cellSize * 0.18, max: cellCenter.x + this.cellSize * 0.18 },
+        y: { min: cellCenter.y - this.cellSize * 0.18, max: cellCenter.y + this.cellSize * 0.18 },
+        speedX: { min: -90, max: 90 },
+        speedY: { min: -220, max: -80 },
+        scale: { start: 0.26, end: 0.04, random: true },
+        alpha: { start: 0.7, end: 0 },
+        lifespan: { min: 360, max: 620 },
+        quantity: bubbleCount,
+        gravityY: -10,
+        rotate: { min: -25, max: 25 },
+        frequency: -1,
+        blendMode: 'ADD',
+      })
+
+      emitter.explode(bubbleCount)
+      this.time.delayedCall(700, () => {
+        emitter.destroy()
+      })
+    }
+  }
+
   private async removeMatchedGems(matches: MatchGroup[]): Promise<void> {
     const uniquePositions = Array.from(
       new Set(matches.flatMap((match) => match.map((position) => this.getPositionKey(position)))),
@@ -1389,6 +1436,10 @@ export class GameScene extends Phaser.Scene {
     if (matchedSprites.length > 0) {
       this.playMatchSound()
       this.advanceMatchSoundCascade()
+
+      for (const match of matches) {
+        this.createMatchBubbleBurst(match)
+      }
     }
 
     await new Promise<void>((resolve) => {
