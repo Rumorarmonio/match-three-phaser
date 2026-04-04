@@ -53,19 +53,24 @@ const BACKGROUND_MUSIC_MUTED_REGISTRY_KEY = 'backgroundMusicMuted'
 const MATCH_SOUND_CASCADE_DETUNE_STEP = 120
 const DESKTOP_LAYOUT_BREAKPOINT = 900
 const DESKTOP_CONTROLS_WIDTH = 320
-const DESKTOP_CONTROLS_HEIGHT = 560
 const DESKTOP_CONTROLS_INNER_OFFSET = 28
-const MOBILE_CONTROLS_HEIGHT = 360
 const SCENE_PADDING = 16
 const BOARD_TO_CONTROLS_GAP = 18
 const DESKTOP_TITLE_HEIGHT = 104
+const CONTROL_SECTION_GAP = 30
+const CONTROL_LABEL_TO_ROWS_GAP = 28
+const CONTROL_ROW_GAP = 36
+const SCORE_TO_RESTART_GAP = 16
+const RESTART_TO_SECTION_GAP = 26
+const MUSIC_LABEL_TO_TRACK_GAP = 34
+const MUSIC_TRACK_TO_BUTTON_GAP = 20
 const BOARD_SIZE_VALUE_OFFSET = 32
 const GEM_TYPE_VALUE_OFFSET = 14
-const DESKTOP_RESTART_BUTTON_Y = 356
-const MOBILE_RESTART_BUTTON_Y = 212
-const DESKTOP_MUSIC_LABEL_Y = 418
-const MOBILE_MUSIC_LABEL_Y = 266
-const MOBILE_COLORS_LABEL_Y = 148
+const SCORE_TEXT_HEIGHT = 30
+const SECTION_LABEL_HEIGHT = 22
+const VALUE_TEXT_HEIGHT = 22
+const CONTROL_BUTTON_HEIGHT = 30
+const MUSIC_BUTTON_HEIGHT = 30
 const BOARD_FRAME_RADIUS = 20
 const GEM_SELECTION_ANIMATION_DURATION = 140
 const DRAG_RETURN_ANIMATION_DURATION = 120
@@ -144,17 +149,13 @@ export class GameScene extends Phaser.Scene {
     this.drawBoard(this.boardState)
     this.registerDragHandlers()
     this.setupAudio()
-    this.createDesktopTitle()
-    this.createScoreText()
-    this.createBoardSizeControls()
-    this.createGemTypeControls()
-    this.createRestartButton()
-    this.createMusicVolumeControl()
+    this.createHud()
     this.registerResizeHandler()
   }
 
   private calculateLayout(width: number, height: number): void {
     this.isDesktopLayout = width >= DESKTOP_LAYOUT_BREAKPOINT
+    this.syncGameRootHeight(width)
 
     if (this.isDesktopLayout) {
       this.calculateDesktopLayout(width, height)
@@ -167,6 +168,7 @@ export class GameScene extends Phaser.Scene {
   private calculateDesktopLayout(width: number, height: number): void {
     this.controlsWidth = DESKTOP_CONTROLS_WIDTH
     this.controlsLeft = SCENE_PADDING
+    const controlsHeight = this.getControlsLayoutHeight()
 
     const boardAreaWidth = Math.max(120, width - SCENE_PADDING * 3 - this.controlsWidth)
     const boardAreaHeight = Math.max(120, height - SCENE_PADDING * 2)
@@ -182,7 +184,7 @@ export class GameScene extends Phaser.Scene {
       SCENE_PADDING +
       Math.max(0, (boardAreaWidth - this.boardWidth) / 2)
     this.boardTop = Math.max(SCENE_PADDING, (height - this.boardHeight) / 2)
-    this.controlsTop = Math.max(SCENE_PADDING, (height - DESKTOP_CONTROLS_HEIGHT) / 2)
+    this.controlsTop = Math.max(SCENE_PADDING, (height - controlsHeight) / 2)
     this.musicVolumeTrackWidth = Math.max(120, this.controlsWidth - DESKTOP_CONTROLS_INNER_OFFSET * 2)
   }
 
@@ -190,21 +192,20 @@ export class GameScene extends Phaser.Scene {
     this.controlsWidth = Math.max(120, width - SCENE_PADDING * 2)
     this.controlsLeft = SCENE_PADDING
     this.musicVolumeTrackWidth = Math.max(120, this.controlsWidth)
+    const controlsHeight = this.getControlsLayoutHeight()
 
     const boardAreaWidth = this.controlsWidth
-    const boardAreaHeight = Math.max(
-      120,
-      height - SCENE_PADDING * 2 - MOBILE_CONTROLS_HEIGHT - BOARD_TO_CONTROLS_GAP,
-    )
     const horizontalCellSize = (boardAreaWidth - BOARD_PADDING * 2) / this.boardColumns
-    const verticalCellSize = (boardAreaHeight - BOARD_PADDING * 2) / this.boardRows
 
-    this.cellSize = Math.max(14, Math.min(horizontalCellSize, verticalCellSize))
+    this.cellSize = Math.max(14, horizontalCellSize)
     this.boardWidth = this.boardColumns * this.cellSize + BOARD_PADDING * 2
     this.boardHeight = this.boardRows * this.cellSize + BOARD_PADDING * 2
     this.boardLeft = SCENE_PADDING + Math.max(0, (boardAreaWidth - this.boardWidth) / 2)
     this.boardTop = SCENE_PADDING
-    this.controlsTop = this.boardTop + this.boardHeight + BOARD_TO_CONTROLS_GAP
+    this.controlsTop = Math.min(
+      this.boardTop + this.boardHeight + BOARD_TO_CONTROLS_GAP,
+      height - controlsHeight - SCENE_PADDING,
+    )
   }
 
   private getGemBaseScale(): number {
@@ -219,8 +220,66 @@ export class GameScene extends Phaser.Scene {
     return this.controlsWidth - DESKTOP_CONTROLS_INNER_OFFSET * 2
   }
 
-  private getDesktopControlsInnerRight(): number {
-    return this.getDesktopControlsInnerLeft() + this.getDesktopControlsInnerWidth()
+  private getControlsContentLeft(): number {
+    return this.isDesktopLayout ? this.getDesktopControlsInnerLeft() : this.controlsLeft
+  }
+
+  private getControlsContentWidth(): number {
+    return this.isDesktopLayout ? this.getDesktopControlsInnerWidth() : this.controlsWidth
+  }
+
+  private getControlsContentRight(): number {
+    return this.getControlsContentLeft() + this.getControlsContentWidth()
+  }
+
+  private getControlsLayoutHeight(): number {
+    const titleHeight = this.isDesktopLayout ? DESKTOP_TITLE_HEIGHT : 0
+    const scoreAndRestartHeight = SCORE_TEXT_HEIGHT + SCORE_TO_RESTART_GAP + CONTROL_BUTTON_HEIGHT + RESTART_TO_SECTION_GAP
+    const boardSectionHeight =
+      SECTION_LABEL_HEIGHT +
+      CONTROL_LABEL_TO_ROWS_GAP +
+      CONTROL_ROW_GAP +
+      VALUE_TEXT_HEIGHT +
+      CONTROL_SECTION_GAP
+    const colorsSectionHeight =
+      SECTION_LABEL_HEIGHT +
+      CONTROL_LABEL_TO_ROWS_GAP +
+      VALUE_TEXT_HEIGHT +
+      CONTROL_SECTION_GAP
+    const musicSectionHeight =
+      SECTION_LABEL_HEIGHT +
+      MUSIC_LABEL_TO_TRACK_GAP +
+      MUSIC_TRACK_TO_BUTTON_GAP +
+      MUSIC_BUTTON_HEIGHT
+
+    return titleHeight + scoreAndRestartHeight + boardSectionHeight + colorsSectionHeight + musicSectionHeight
+  }
+
+  private syncGameRootHeight(width: number): void {
+    const gameRoot = this.game.canvas.parentElement
+
+    if (!gameRoot) {
+      return
+    }
+
+    if (this.isDesktopLayout) {
+      gameRoot.style.height = ''
+      return
+    }
+
+    const controlsWidth = Math.max(120, width - SCENE_PADDING * 2)
+    const cellSize = Math.max(14, (controlsWidth - BOARD_PADDING * 2) / this.boardColumns)
+    const boardHeight = this.boardRows * cellSize + BOARD_PADDING * 2
+    const requiredHeight =
+      SCENE_PADDING * 2 +
+      boardHeight +
+      BOARD_TO_CONTROLS_GAP +
+      this.getControlsLayoutHeight()
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight
+    const fallbackHeight = Math.min(Math.max(320, viewportHeight - 96), 760)
+    const nextHeight = Math.max(requiredHeight, fallbackHeight)
+
+    gameRoot.style.height = `${Math.ceil(nextHeight)}px`
   }
 
   private initializeBoardSettings(data: GameSceneData): void {
@@ -807,19 +866,19 @@ export class GameScene extends Phaser.Scene {
     this.backgroundMusic.setVolume(this.isBackgroundMusicMuted ? 0 : this.backgroundMusicVolume)
   }
 
-  private createMusicVolumeControl(): void {
-    if (this.isDesktopLayout) {
-      this.createDesktopMusicVolumeControl()
-      return
-    }
-
-    this.createMobileMusicVolumeControl()
+  private createHud(): void {
+    let nextSectionTop = this.createDesktopTitle()
+    nextSectionTop = this.createScoreText(nextSectionTop)
+    nextSectionTop = this.createRestartButton(nextSectionTop)
+    nextSectionTop = this.createBoardSizeControls(nextSectionTop)
+    nextSectionTop = this.createGemTypeControls(nextSectionTop)
+    this.createMusicVolumeControl(nextSectionTop)
   }
 
-  private createDesktopMusicVolumeControl(): void {
-    const labelY = this.controlsTop + DESKTOP_MUSIC_LABEL_Y
-    const trackY = labelY + 33
-    const trackLeft = this.getDesktopControlsInnerLeft()
+  private createMusicVolumeControl(sectionTop: number): void {
+    const labelY = sectionTop
+    const trackY = labelY + MUSIC_LABEL_TO_TRACK_GAP
+    const trackLeft = this.getControlsContentLeft()
     const trackWidth = this.musicVolumeTrackWidth
 
     this.add.text(trackLeft, labelY, 'Music', {
@@ -856,61 +915,7 @@ export class GameScene extends Phaser.Scene {
     this.musicVolumeValueText.setOrigin(1, 0)
 
     this.musicMuteButton = this.add
-      .text(trackLeft, trackY + 20, '', {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '16px',
-        color: '#24173f',
-        backgroundColor: '#f7b267',
-        padding: { x: 10, y: 6 },
-      })
-      .setInteractive({ useHandCursor: true })
-
-    this.setupMusicMuteButtonInteractions()
-    this.updateMusicVolumeControl()
-  }
-
-  private createMobileMusicVolumeControl(): void {
-    const labelY = this.controlsTop + MOBILE_MUSIC_LABEL_Y
-    const trackY = labelY + 34
-    const trackLeft = this.controlsLeft
-    const trackWidth = this.musicVolumeTrackWidth
-
-    this.add.text(trackLeft, labelY, 'Music', {
-      fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-      fontSize: '18px',
-      color: '#f7b267',
-      fontStyle: 'bold',
-    })
-
-    this.musicVolumeTrack = this.add
-      .rectangle(trackLeft, trackY, trackWidth, 10, 0x4e4167, 0.95)
-      .setOrigin(0, 0.5)
-
-    this.musicVolumeFill = this.add
-      .rectangle(trackLeft, trackY, trackWidth, 10, 0xf7b267, 1)
-      .setOrigin(0, 0.5)
-
-    this.musicVolumeThumb = this.add
-      .rectangle(trackLeft, trackY, 14, 24, 0xfff4d6, 1)
-      .setStrokeStyle(2, 0x24173f, 0.65)
-
-    const trackHitArea = this.add
-      .rectangle(trackLeft, trackY, trackWidth, 26, 0x000000, 0.001)
-      .setOrigin(0, 0.5)
-      .setInteractive({ useHandCursor: true })
-
-    this.setupMusicTrackInteractions(trackHitArea)
-
-    this.musicVolumeValueText = this.add
-      .text(trackLeft + trackWidth, labelY, '', {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '16px',
-        color: '#fff4d6',
-      })
-      .setOrigin(1, 0)
-
-    this.musicMuteButton = this.add
-      .text(trackLeft, trackY + 20, '', {
+      .text(trackLeft, trackY + MUSIC_TRACK_TO_BUTTON_GAP, '', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '16px',
         color: '#24173f',
@@ -1022,14 +1027,8 @@ export class GameScene extends Phaser.Scene {
     this.updateMusicMuteButton()
   }
 
-  private createScoreText(): void {
-    const scoreX = this.isDesktopLayout
-      ? this.getDesktopControlsInnerLeft()
-      : this.controlsLeft
-
-    const scoreY = this.isDesktopLayout ? this.controlsTop + DESKTOP_TITLE_HEIGHT : this.controlsTop
-
-    this.scoreText = this.add.text(scoreX, scoreY, '', {
+  private createScoreText(sectionTop: number): number {
+    this.scoreText = this.add.text(this.getControlsContentLeft(), sectionTop, '', {
       fontFamily: 'Trebuchet MS, Verdana, sans-serif',
       fontSize: '24px',
       color: '#fff4d6',
@@ -1037,26 +1036,18 @@ export class GameScene extends Phaser.Scene {
     })
 
     this.updateScoreText()
+    return this.scoreText.y + this.scoreText.height + SCORE_TO_RESTART_GAP
   }
 
-  private createBoardSizeControls(): void {
-    if (this.isDesktopLayout) {
-      this.createDesktopBoardSizeControls()
-      return
-    }
+  private createBoardSizeControls(sectionTop: number): number {
+    const labelY = sectionTop
+    const firstRowY = labelY + CONTROL_LABEL_TO_ROWS_GAP
+    const secondRowY = firstRowY + CONTROL_ROW_GAP
+    const controlsLeft = this.getControlsContentLeft()
+    const controlsRight = this.getControlsContentRight()
+    const centerX = controlsLeft + this.getControlsContentWidth() / 2
 
-    this.createMobileBoardSizeControls()
-  }
-
-  private createDesktopBoardSizeControls(): void {
-    const labelY = this.controlsTop + 176
-    const firstRowY = labelY + 28
-    const secondRowY = firstRowY + 36
-    const controlsLeft = this.getDesktopControlsInnerLeft()
-    const controlsRight = this.getDesktopControlsInnerRight()
-    const centerX = controlsLeft + this.getDesktopControlsInnerWidth() / 2
-
-    this.add.text(controlsLeft, labelY, 'Board', {
+    const label = this.add.text(controlsLeft, labelY, 'Board', {
       fontFamily: 'Trebuchet MS, Verdana, sans-serif',
       fontSize: '18px',
       color: '#f7b267',
@@ -1103,82 +1094,17 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
 
     this.updateBoardSizeText()
+    return Math.max(label.y + label.height, this.boardSizeText.y + this.boardSizeText.height) + CONTROL_SECTION_GAP
   }
 
-  private createMobileBoardSizeControls(): void {
-    const labelY = this.controlsTop + 42
-    const firstRowY = labelY + 28
-    const secondRowY = firstRowY + 36
-    const centerX = this.controlsLeft + this.controlsWidth / 2
+  private createGemTypeControls(sectionTop: number): number {
+    const labelY = sectionTop
+    const rowY = labelY + CONTROL_LABEL_TO_ROWS_GAP
+    const controlsLeft = this.getControlsContentLeft()
+    const controlsRight = this.getControlsContentRight()
+    const centerX = controlsLeft + this.getControlsContentWidth() / 2
 
-    this.add.text(this.controlsLeft, labelY, 'Board', {
-      fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-      fontSize: '18px',
-      color: '#f7b267',
-      fontStyle: 'bold',
-    })
-
-    const decreaseColumnsButton = this.createBoardSizeButton(this.controlsLeft, firstRowY, '-C')
-    decreaseColumnsButton.on('pointerdown', () => {
-      this.changeBoardSize('columns', -1)
-    })
-
-    const increaseColumnsButton = this.createBoardSizeButton(this.controlsLeft, firstRowY, '+C')
-    increaseColumnsButton.on('pointerdown', () => {
-      this.changeBoardSize('columns', 1)
-    })
-
-    decreaseColumnsButton.setPosition(this.controlsLeft, firstRowY)
-    increaseColumnsButton.setPosition(
-      this.controlsLeft + this.controlsWidth - increaseColumnsButton.width,
-      firstRowY,
-    )
-
-    const decreaseRowsButton = this.createBoardSizeButton(this.controlsLeft, secondRowY, '-R')
-    decreaseRowsButton.on('pointerdown', () => {
-      this.changeBoardSize('rows', -1)
-    })
-
-    const increaseRowsButton = this.createBoardSizeButton(this.controlsLeft, secondRowY, '+R')
-    increaseRowsButton.on('pointerdown', () => {
-      this.changeBoardSize('rows', 1)
-    })
-
-    decreaseRowsButton.setPosition(this.controlsLeft, secondRowY)
-    increaseRowsButton.setPosition(
-      this.controlsLeft + this.controlsWidth - increaseRowsButton.width,
-      secondRowY,
-    )
-
-    this.boardSizeText = this.add
-      .text(centerX, firstRowY + BOARD_SIZE_VALUE_OFFSET, '', {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '18px',
-        color: '#fff4d6',
-        align: 'center',
-      })
-      .setOrigin(0.5)
-
-    this.updateBoardSizeText()
-  }
-
-  private createGemTypeControls(): void {
-    if (this.isDesktopLayout) {
-      this.createDesktopGemTypeControls()
-      return
-    }
-
-    this.createMobileGemTypeControls()
-  }
-
-  private createDesktopGemTypeControls(): void {
-    const labelY = this.controlsTop + 290
-    const rowY = labelY + 28
-    const controlsLeft = this.getDesktopControlsInnerLeft()
-    const controlsRight = this.getDesktopControlsInnerRight()
-    const centerX = controlsLeft + this.getDesktopControlsInnerWidth() / 2
-
-    this.add.text(controlsLeft, labelY, 'Colors', {
+    const label = this.add.text(controlsLeft, labelY, 'Colors', {
       fontFamily: 'Trebuchet MS, Verdana, sans-serif',
       fontSize: '18px',
       color: '#f7b267',
@@ -1210,46 +1136,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
 
     this.updateGemTypeCountText()
-  }
-
-  private createMobileGemTypeControls(): void {
-    const labelY = this.controlsTop + MOBILE_COLORS_LABEL_Y
-    const rowY = labelY + 28
-    const centerX = this.controlsLeft + this.controlsWidth / 2
-
-    this.add.text(this.controlsLeft, labelY, 'Colors', {
-      fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-      fontSize: '18px',
-      color: '#f7b267',
-      fontStyle: 'bold',
-    })
-
-    const decreaseGemTypesButton = this.createBoardSizeButton(this.controlsLeft, rowY, '-')
-    decreaseGemTypesButton.on('pointerdown', () => {
-      this.changeGemTypeCount(-1)
-    })
-
-    const increaseGemTypesButton = this.createBoardSizeButton(this.controlsLeft, rowY, '+')
-    increaseGemTypesButton.on('pointerdown', () => {
-      this.changeGemTypeCount(1)
-    })
-
-    decreaseGemTypesButton.setPosition(this.controlsLeft, rowY)
-    increaseGemTypesButton.setPosition(
-      this.controlsLeft + this.controlsWidth - increaseGemTypesButton.width,
-      rowY,
-    )
-
-    this.gemTypeCountText = this.add
-      .text(centerX, rowY + GEM_TYPE_VALUE_OFFSET, '', {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '18px',
-        color: '#fff4d6',
-        align: 'center',
-      })
-      .setOrigin(0.5)
-
-    this.updateGemTypeCountText()
+    return Math.max(label.y + label.height, this.gemTypeCountText.y + this.gemTypeCountText.height) + CONTROL_SECTION_GAP
   }
 
   private createBoardSizeButton(
@@ -1330,43 +1217,23 @@ export class GameScene extends Phaser.Scene {
     })
   }
 
-  private createRestartButton(): void {
-    if (this.isDesktopLayout) {
-      this.createDesktopRestartButton()
-      return
+  private createRestartButton(sectionTop: number): number {
+    const button = this.add
+      .text(this.getControlsContentLeft(), sectionTop, 'Restart game', {
+        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
+        fontSize: '18px',
+        color: '#24173f',
+        backgroundColor: '#f7b267',
+        padding: { x: 10, y: 6 },
+      })
+      .setInteractive({ useHandCursor: true })
+
+    if (!this.isDesktopLayout) {
+      button.setPosition(this.controlsLeft + (this.controlsWidth - button.width) / 2, button.y)
     }
 
-    this.createMobileRestartButton()
-  }
-
-  private createDesktopRestartButton(): void {
-    const button = this.add
-      .text(this.getDesktopControlsInnerLeft(), this.controlsTop + DESKTOP_RESTART_BUTTON_Y, 'Restart game', {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '18px',
-        color: '#24173f',
-        backgroundColor: '#f7b267',
-        padding: { x: 10, y: 6 },
-      })
-      .setInteractive({ useHandCursor: true })
-
     this.setupRestartButtonInteractions(button)
-  }
-
-  private createMobileRestartButton(): void {
-    const button = this.add
-      .text(0, this.controlsTop + MOBILE_RESTART_BUTTON_Y, 'Restart game', {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '18px',
-        color: '#24173f',
-        backgroundColor: '#f7b267',
-        padding: { x: 10, y: 6 },
-      })
-      .setInteractive({ useHandCursor: true })
-
-    button.setPosition(this.controlsLeft + (this.controlsWidth - button.width) / 2, button.y)
-
-    this.setupRestartButtonInteractions(button)
+    return button.y + button.height + RESTART_TO_SECTION_GAP
   }
 
   private setupRestartButtonInteractions(button: Phaser.GameObjects.Text): void {
@@ -1392,9 +1259,9 @@ export class GameScene extends Phaser.Scene {
     this.scoreText.setText(`Score: ${this.score}`)
   }
 
-  private createDesktopTitle(): void {
+  private createDesktopTitle(): number {
     if (!this.isDesktopLayout) {
-      return
+      return this.controlsTop
     }
 
     const titleLeft = this.getDesktopControlsInnerLeft()
@@ -1416,6 +1283,8 @@ export class GameScene extends Phaser.Scene {
       wordWrap: { width: titleWidth },
       lineSpacing: -4,
     })
+
+    return this.controlsTop + DESKTOP_TITLE_HEIGHT
   }
 
   private getPositionKey(position: GridPosition): string {
