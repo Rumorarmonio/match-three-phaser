@@ -78,6 +78,7 @@ const DRAG_PREVIEW_ANIMATION_DURATION = 75
 const MATCH_BUBBLE_BASE_COUNT = 6
 const MATCH_BUBBLE_PER_GEM = 3
 const MATCH_BUBBLE_MAX_COUNT = 32
+const GEM_DRAG_DISTANCE_THRESHOLD = 12
 const BUBBLE_TINT_BY_GEM_TYPE: Record<GemType, number> = {
   ruby: 0xff6b7c,
   cyan: 0x71e5ff,
@@ -102,6 +103,8 @@ export class GameScene extends Phaser.Scene {
   private matchedGemKeys = new Set<string>()
   private isBoardBusy = false
   private draggedGem: GemView | null = null
+  private pressedGem: GemView | null = null
+  private didDragPressedGem = false
   private dragStartPointerPosition: { x: number; y: number } | null = null
   private dragPreviewTargetGem: GemView | null = null
   private boardLeft = 0
@@ -140,6 +143,7 @@ export class GameScene extends Phaser.Scene {
   create(data: GameSceneData = {}): void {
     this.initializeBoardSettings(data)
     this.initializeGameState(data)
+    this.input.dragDistanceThreshold = GEM_DRAG_DISTANCE_THRESHOLD
 
     const { width, height } = this.scale
     this.calculateLayout(width, height)
@@ -299,6 +303,8 @@ export class GameScene extends Phaser.Scene {
     this.matchedGemKeys.clear()
     this.isBoardBusy = false
     this.draggedGem = null
+    this.pressedGem = null
+    this.didDragPressedGem = false
     this.dragStartPointerPosition = null
     this.dragPreviewTargetGem = null
     this.score = data.score ?? 0
@@ -395,6 +401,57 @@ export class GameScene extends Phaser.Scene {
     }
 
     void this.swapSelectedGems(this.selectedGem, gemView)
+  }
+
+  private handleGemPointerDown(gemView: GemView): void {
+    if (this.isBoardBusy) {
+      return
+    }
+
+    this.pressedGem = gemView
+    this.didDragPressedGem = false
+
+    if (
+      !this.selectedGem ||
+      this.selectedGem === gemView ||
+      !this.areAdjacent(this.selectedGem.position, gemView.position)
+    ) {
+      this.handleGemSelection(gemView)
+    }
+  }
+
+  private handleGemPointerUp(gemView: GemView): void {
+    if (this.pressedGem !== gemView) {
+      return
+    }
+
+    this.pressedGem = null
+
+    if (this.isBoardBusy || this.draggedGem === gemView || this.didDragPressedGem) {
+      this.didDragPressedGem = false
+      return
+    }
+
+    this.didDragPressedGem = false
+
+    if (!this.selectedGem || this.selectedGem === gemView) {
+      return
+    }
+
+    if (!this.areAdjacent(this.selectedGem.position, gemView.position)) {
+      return
+    }
+
+    void this.swapSelectedGems(this.selectedGem, gemView)
+  }
+
+  private handleBoardPointerUp(): void {
+    if (!this.pressedGem) {
+      return
+    }
+
+    const pressedGem = this.pressedGem
+    this.handleGemPointerUp(pressedGem)
   }
 
   private updateSelectionState(): void {
@@ -559,6 +616,7 @@ export class GameScene extends Phaser.Scene {
     this.input.off('dragstart')
     this.input.off('drag')
     this.input.off('dragend')
+    this.input.off('pointerup', this.handleBoardPointerUp, this)
 
     this.input.on('dragstart', (_pointer: Phaser.Input.Pointer, gameObject: Phaser.GameObjects.GameObject) => {
       const gemView = gameObject.getData('gemView') as GemView | undefined
@@ -567,6 +625,8 @@ export class GameScene extends Phaser.Scene {
         return
       }
 
+      this.pressedGem = null
+      this.didDragPressedGem = true
       this.draggedGem = gemView
       this.dragStartPointerPosition = { x: gemView.sprite.x, y: gemView.sprite.y }
       gemView.highlight.setDepth(2)
@@ -605,6 +665,8 @@ export class GameScene extends Phaser.Scene {
       gemView.sprite.setDepth(1)
 
       const targetGem = this.getDragSwapTarget(gemView)
+      this.pressedGem = null
+      this.didDragPressedGem = false
       this.draggedGem = null
       this.dragStartPointerPosition = null
 
@@ -616,6 +678,8 @@ export class GameScene extends Phaser.Scene {
       this.dragPreviewTargetGem = null
       void this.swapSelectedGems(gemView, targetGem)
     })
+
+    this.input.on('pointerup', this.handleBoardPointerUp, this)
   }
 
   private getDraggedGemPosition(pointer: Phaser.Input.Pointer): { x: number; y: number } {
@@ -736,12 +800,8 @@ export class GameScene extends Phaser.Scene {
 
     gem.setData('gemView', gemView)
 
-    gem.on('pointerup', (pointer: Phaser.Input.Pointer) => {
-      if (this.draggedGem === gemView || pointer.getDistance() > 8) {
-        return
-      }
-
-      this.handleGemSelection(gemView)
+    gem.on('pointerdown', () => {
+      this.handleGemPointerDown(gemView)
     })
 
     return gemView
